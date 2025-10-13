@@ -18,12 +18,14 @@ def load_f1_session(year: int, location: str):
     return session
 
 @st.cache_data
-def get_race_circuits_data():
+def get_race_circuits_results_data():
     '''Get merged race and circuit dataframe'''
     df_circuits = load_circuits_dataset()
     df_races = load_race_dataset()
+    df_results = load_results_dataset()
     df_circuit_race = pd.merge(df_races, df_circuits, on='circuitId', how='left', suffixes=['_race', '_circuits'])
-    return df_circuit_race
+    df_race_circuits_results = pd.merge(df_results, df_circuit_race, on='raceId', how='left', suffixes=['_results', '_raceCircuit'])
+    return df_race_circuits_results
 
 @st.cache_data
 def get_race_locations(df_circuit_race):
@@ -74,7 +76,7 @@ def plot_speed_heatmap(selected_year, selected_location):
     ax.set_axis_off()
     ax.set_title(
         f"{selected_location} Circuit - Speed Heatmap\n{fastest_lap['Driver']} Fastest Lap ({selected_year})",
-        fontsize=14, fontweight='bold', pad=20
+        fontsize=10, fontweight='bold', pad=20
     )
 
     plt.tight_layout()
@@ -87,7 +89,8 @@ def raceStatsTab():
     st.markdown("### 🔍 Select Race")
 
     available_years = list(range(2020, 2025))
-    available_locations = get_race_locations()
+    df_race_circuits_results = get_race_circuits_results_data()
+    available_locations = get_race_locations(df_race_circuits_results)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -97,6 +100,11 @@ def raceStatsTab():
 
     st.markdown("---")
     
+    df_race_circuits_filtered = df_race_circuits_results.loc[
+        (df_race_circuits_results['location'] == selected_location) &
+        (df_race_circuits_results['year'] == selected_year)
+    ]
+
     with st.container(width=500, height=800, border=False):
         fig = plot_speed_heatmap(selected_year, selected_location)
-        st.pyplot(fig, width='stretch')
+        st.pyplot(fig, width='content')
