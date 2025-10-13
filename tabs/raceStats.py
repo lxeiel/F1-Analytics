@@ -6,7 +6,7 @@ import numpy as np
 import os
 from utils.loadDatasets import *
 
-@st.cache_data(show_spinner="Loading session data... This may take a moment ⏳")
+@st.cache_data(show_spinner="Loading session data...")
 def load_f1_session(year: int, location: str):
     """Loads and caches the F1 session data"""
     cache_dir = "./f1_cache"
@@ -18,32 +18,28 @@ def load_f1_session(year: int, location: str):
     return session
 
 @st.cache_data
-def get_race_circuits_results_data():
-    '''Get merged race and circuit dataframe'''
-    df_circuits = load_circuits_dataset()
-    df_races = load_race_dataset()
-    df_results = load_results_dataset()
-    df_circuit_race = pd.merge(df_races, df_circuits, on='circuitId', how='left', suffixes=['_race', '_circuits'])
-    df_race_circuits_results = pd.merge(df_results, df_circuit_race, on='raceId', how='left', suffixes=['_results', '_raceCircuit'])
-    return df_race_circuits_results
+def get_overall_data():
+    return load_merged_dateset()
 
 @st.cache_data
 def get_race_locations(df_circuit_race):
     return list(df_circuit_race['location'].unique())
 
 @st.cache_data(show_spinner=False)
-def plot_speed_heatmap(selected_year, selected_location):
+def plot_speed_heatmap(selected_year, selected_location, driver_code = 'VER'):
     """
     Generate and display a speed heatmap for the fastest lap of a given race.
 
     Parameters:
     - selected_year (int): Race year
-    - selected_location (str): Race location (e.g., 'Monza')
-    - load_f1_session (function): Function to load the F1 session (cached elsewhere)
+    - selected_location (str): Race location
+    - selected driver (str)
     """
     # Load session and telemetry data
     session = load_f1_session(selected_year, selected_location)
-    fastest_lap = session.laps.pick_fastest()
+    # fastest_lap = session.laps.pick_fastest()
+    driver_laps = session.laps.pick_driver(driver_code)
+    fastest_lap = driver_laps.pick_fastest()
     tel = fastest_lap.get_telemetry()
 
     # Prepare track coordinate and speed data
@@ -89,8 +85,8 @@ def raceStatsTab():
     st.markdown("### 🔍 Select Race")
 
     available_years = list(range(2020, 2025))
-    df_race_circuits_results = get_race_circuits_results_data()
-    available_locations = get_race_locations(df_race_circuits_results)
+    df_overall = get_overall_data()
+    available_locations = get_race_locations(df_overall)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -100,11 +96,23 @@ def raceStatsTab():
 
     st.markdown("---")
     
-    df_race_circuits_filtered = df_race_circuits_results.loc[
-        (df_race_circuits_results['location'] == selected_location) &
-        (df_race_circuits_results['year'] == selected_year)
+    df_overall_filtered = df_overall.loc[
+        (df_overall['location'] == selected_location) &
+        (df_overall['year'] == selected_year)
     ]
 
-    with st.container(width=500, height=800, border=False):
-        fig = plot_speed_heatmap(selected_year, selected_location)
-        st.pyplot(fig, width='content')
+    st.subheader(df_overall_filtered.iloc[0]['name_race'])
+
+    col1, col2 = st.columns(2, vertical_alignment="top")
+
+    with col1:
+        st.write('TODO: ADD TOP DRIVERS')
+        st.write('TODO: ADD DRIVER LAP TIMES')
+
+    with col2:
+        with st.container(width=500, height=800, border=False, horizontal_alignment="right"):
+            st.write('TODO: THIS IS RANK 1 DRIVER FASTEST LAPTIME - MAKE DYNAMIC')
+            fig = plot_speed_heatmap(selected_year, selected_location)
+            st.pyplot(fig, width='content')
+
+    st.write(df_overall_filtered)
