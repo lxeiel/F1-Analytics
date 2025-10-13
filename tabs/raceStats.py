@@ -25,20 +25,49 @@ def get_overall_data():
 def get_race_locations(df_circuit_race):
     return list(df_circuit_race['location'].unique())
 
+@st.cache_data
+def get_race_years(df_circuit_race):
+    return sorted(list(df_circuit_race['year'].unique()))
+
+import streamlit as st
+import pandas as pd
+
+def driver_selection_component(df_top5: pd.DataFrame) -> str:
+    if "selected_driver" not in st.session_state:
+        st.session_state.selected_driver = df_top5.iloc[0]['code']
+
+    def select_driver(driver_code):
+        st.session_state.selected_driver = driver_code
+
+    for idx, row in df_top5.iterrows():
+        selected = st.session_state.selected_driver == row["code"]
+
+        with st.container(border=True, horizontal_alignment="left"):
+            # Highlight selected driver
+            st.markdown(f"### {row['Driver']} ({row['code']})")
+            
+            # Display driver info
+            col1, col2, col3 = st.columns([2,2,1], vertical_alignment="top")
+            with col1:
+                st.write(f"**Team:** {row['name'] if 'name' in row else ''}")  # adjust as needed
+                st.write(f"**Position:** {row['positionOrder']}")
+                st.write(f"**Points:** {row['points']}")
+                st.write(f"**Time:** {row['time_results']}")
+            with col2:
+                st.write(f"**Fastest Lap Time:** {row['fastestLapTime']}")
+                st.write(f"**Fastest Lap Speed:** {row['fastestLapSpeed']} km/h")
+            with col3:
+                if st.button("Select", key=f"select_{row['code']}"):
+                    select_driver(row["code"])
+
+    return st.session_state.selected_driver
+
+
 @st.cache_data(show_spinner=False)
 def plot_speed_heatmap(selected_year, selected_location, driver_code = 'VER'):
-    """
-    Generate and display a speed heatmap for the fastest lap of a given race.
 
-    Parameters:
-    - selected_year (int): Race year
-    - selected_location (str): Race location
-    - selected driver (str)
-    """
-    # Load session and telemetry data
     session = load_f1_session(selected_year, selected_location)
-    # fastest_lap = session.laps.pick_fastest()
-    driver_laps = session.laps.pick_driver(driver_code)
+    driver_laps = session.laps.pick_drivers(driver_code)
     fastest_lap = driver_laps.pick_fastest()
     tel = fastest_lap.get_telemetry()
 
@@ -84,8 +113,8 @@ def raceStatsTab():
 
     st.markdown("### 🔍 Select Race")
 
-    available_years = list(range(2020, 2025))
     df_overall = get_overall_data()
+    available_years = get_race_years(df_overall)
     available_locations = get_race_locations(df_overall)
 
     col1, col2 = st.columns(2)
@@ -99,20 +128,23 @@ def raceStatsTab():
     df_overall_filtered = df_overall.loc[
         (df_overall['location'] == selected_location) &
         (df_overall['year'] == selected_year)
-    ]
+    ].sort_values(by='positionOrder', ascending=True)
 
     st.subheader(df_overall_filtered.iloc[0]['name_race'])
 
-    col1, col2 = st.columns(2, vertical_alignment="top")
+    col1, col2 = st.columns([2,1], vertical_alignment="top")
 
     with col1:
-        st.write('TODO: ADD TOP DRIVERS')
-        st.write('TODO: ADD DRIVER LAP TIMES')
+        df_overall_filtered['Driver'] = df_overall_filtered['forename'] + " " + df_overall_filtered['surname']
+        list_display_cols = ['Driver', 'code', 'name', 'positionOrder', 'points', 'time_results', 'fastestLapTime', 'fastestLapSpeed']
+        df_overall_filtered_top5 = df_overall_filtered[list_display_cols].iloc[:5]
+
+        selected_driver = driver_selection_component(df_overall_filtered_top5)
 
     with col2:
         with st.container(width=500, height=800, border=False, horizontal_alignment="right"):
-            st.write('TODO: THIS IS RANK 1 DRIVER FASTEST LAPTIME - MAKE DYNAMIC')
-            fig = plot_speed_heatmap(selected_year, selected_location)
+            fig = plot_speed_heatmap(selected_year, selected_location, driver_code=st.session_state.selected_driver)
             st.pyplot(fig, width='content')
 
-    st.write(df_overall_filtered)
+    st.write("Top 5 drivers DF (for testing)")
+    st.write(df_overall_filtered_top5)
