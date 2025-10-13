@@ -3,6 +3,7 @@
 Streamlit UI to visualise F1 data for drivers and races
 ## Set Up and Run
 ### Using Windows .bat file
+Run Setup only on the first time
 ```powershell
 setup
 ```
