@@ -1,0 +1,5 @@
+f1_cache/
+__pycache__/
+.env
+.ipynb
+venv/
