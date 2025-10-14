@@ -8,5 +8,5 @@ def get_overall_data():
 def driverStatsTab():
     st.header("👨‍✈️ Driver Statistics")
 
-st.write("TODO: ADD IN FILTER")
-st.write("TODO: ADD DRIVER STATS")
+    st.write("TODO: ADD IN FILTER")
+    st.write("TODO: ADD DRIVER STATS")
