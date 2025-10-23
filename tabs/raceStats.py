@@ -26,7 +26,7 @@ def create_fastf1_session(year, location):
 def load_driver_telemetry(year: int, location: str, driver_code: str):
     """
     Load telemetry for the fastest lap of a given driver, year, and race.
-    Returns a DataFrame with X, Y, Speed columns.
+    Returns a df with all telemetry columns
     """
     session = create_fastf1_session(year, location)
     driver_laps = session.laps.pick_drivers(driver_code)
@@ -35,48 +35,129 @@ def load_driver_telemetry(year: int, location: str, driver_code: str):
     fastest_lap = driver_laps.pick_fastest()
     tel = fastest_lap.get_telemetry()
 
-    # return trimmed telemetry
     return pd.DataFrame({
         "X": tel["X"],
         "Y": tel["Y"],
-        "Speed": tel["Speed"]
+        "Speed": tel["Speed"],
+        "Throttle": tel["Throttle"],
+        "Brake": tel["Brake"],
+        "RPM": tel["RPM"],
+        "nGear": tel["nGear"],
+        "DRS": tel["DRS"]
     })
 
 
-def plot_speed_heatmap(selected_year, selected_location, driver_code='VER'):
-    """Create and return a matplotlib Figure for the driver's fastest lap speed heatmap."""
+def plot_telemetry_heatmap(selected_year, selected_location, driver_code='VER', metric='Speed'):
+    """
+    Create figure for chosen driver's fastest lap telemetry heatmap.
+    
+    Parameters:
+    -----------
+    metric : str
+        Telemetry metric to display. Options:
+        - 'Speed': Car speed in km/h
+        - 'Throttle': Throttle position (0-100%)
+        - 'Brake': Brake application (0-100% or boolean)
+        - 'RPM': Engine revolutions per minute
+        - 'Gear': Current gear (1-8)
+        - 'DRS': DRS status (0=inactive, >0=active)
+    """
     tel = load_driver_telemetry(selected_year, selected_location, driver_code)
 
-    # prepare coordinate and speed data
     points = np.array([tel['X'], tel['Y']]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    speeds = tel['Speed'][:-1]
+
+    # Map metric to df columns
+    metric_column_map = {
+        'Speed': 'Speed',
+        'Throttle': 'Throttle',
+        'Brake': 'Brake',
+        'RPM': 'RPM',
+        'Gear': 'nGear',
+        'DRS': 'DRS'
+    }
+    
+    column_name = metric_column_map[metric]
+    metric_data = tel[column_name][:-1]
+    
+    # config for different metrics
+    metric_config = {
+        'Speed': {
+            'cmap': 'plasma',
+            'label': 'Speed (km/h)',
+            'use_minmax': True
+        },
+        'Throttle': {
+            'cmap': 'YlGn',
+            'label': 'Throttle (%)',
+            'use_minmax': False,
+            'vmin': 0,
+            'vmax': 100
+        },
+        'Brake': {
+            'cmap': 'Reds',
+            'label': 'Brake Pressure',
+            'use_minmax': True  # Brake can be boolean or percentage
+        },
+        'RPM': {
+            'cmap': 'inferno',
+            'label': 'RPM',
+            'use_minmax': True
+        },
+        'Gear': {
+            'cmap': 'viridis',
+            'label': 'Gear',
+            'use_minmax': False,
+            'vmin': 1,
+            'vmax': 8
+        },
+        'DRS': {
+            'cmap': 'RdYlGn',
+            'label': 'DRS (0=Off, >0=On)',
+            'use_minmax': False,
+            'vmin': 0,
+            'vmax': 14
+        }
+    }
+    
+    config = metric_config[metric]
+    
+    # Set up normalization
+    if config['use_minmax']:
+        norm = plt.Normalize(vmin=metric_data.min(), vmax=metric_data.max())
+    else:
+        norm = plt.Normalize(vmin=config['vmin'], vmax=config['vmax'])
 
     fig_width = 8
     fig, ax = plt.subplots(figsize=(fig_width, fig_width * 0.8))
-    norm = plt.Normalize(vmin=speeds.min(), vmax=speeds.max())
-    lc = LineCollection(segments, cmap='plasma', norm=norm, linewidth=5, alpha=0.85)
-    lc.set_array(speeds)
+    
+    lc = LineCollection(segments, cmap=config['cmap'], norm=norm, linewidth=5, alpha=0.85)
+    lc.set_array(metric_data)
     line = ax.add_collection(lc)
 
+    # Set axis properties
     ax.set_aspect('equal')
     ax.set_xlim(tel['X'].min() - 100, tel['X'].max() + 100)
     ax.set_ylim(tel['Y'].min() - 100, tel['Y'].max() + 100)
 
+    # Add colorbar
     cbar = plt.colorbar(line, ax=ax, fraction=0.035, pad=0.02)
-    cbar.set_label('Speed (km/h)', rotation=270, labelpad=12)
+    cbar.set_label(config['label'], rotation=270, labelpad=12)
 
-    # start/finish markers
-    ax.plot(tel['X'].iloc[0], tel['Y'].iloc[0], 'go', markersize=10, label='Start')
-    ax.plot(tel['X'].iloc[-1], tel['Y'].iloc[-1], 'ro', markersize=10, label='Finish')
+    # Add start/finish markers
+    ax.plot(tel['X'].iloc[0], tel['Y'].iloc[0], 'go', markersize=10, label='Start', zorder=5)
+    ax.plot(tel['X'].iloc[-1], tel['Y'].iloc[-1], 'ro', markersize=10, label='Finish', zorder=5)
+    ax.legend(loc='upper right', fontsize=8)
 
     ax.set_axis_off()
     ax.set_title(
-        f"{selected_location} Circuit - Speed Heatmap\n{driver_code} Fastest Lap ({selected_year})",
+        f"{selected_location} Circuit - {metric} Heatmap\n{driver_code} Fastest Lap ({selected_year})",
         fontsize=10, fontweight='bold', pad=20
     )
     plt.tight_layout()
+    
     return fig
+
 
 @st.cache_data
 def get_overall_data():
@@ -142,12 +223,11 @@ def raceStatsTab():
             df_overall["year"] == st.session_state.selected_year, "location"
         ].iloc[0]
 
-    # --- Filter available options dynamically ---
+    #  Filter options dynamically
     filtered_locations = df_overall.loc[
         df_overall["year"] == st.session_state.selected_year, "location"
     ].unique()
 
-    # --- UI ---
     col1, col2 = st.columns(2)
     with col1:
         selected_year = st.selectbox(
@@ -188,14 +268,40 @@ def raceStatsTab():
         selected_driver = driver_selection_component(df_overall_filtered_top5)
 
     with col2:
+        # Metric selector
+        metric_options = ['Speed', 'Throttle', 'Brake', 'RPM', 'Gear', 'DRS']
+        metric_descriptions = {
+            "Speed": "🏎️ Car speed in km/h at each point on track",
+            "Throttle": "⚡ Throttle position percentage (0-100%)",
+            "Brake": "🛑 Brake application pressure",
+            "RPM": "🔄 Engine revolutions per minute",
+            "Gear": "⚙️ Current gear selection (1-8)",
+            "DRS": "💨 DRS activation zones and usage"
+        }
+        
+        selected_metric = st.selectbox(
+            "📊 Select Telemetry Metric",
+            metric_options,
+            index=0,
+            help="Choose which telemetry data to visualize on the track map"
+        )
+        
+        st.info(metric_descriptions[selected_metric])
+        
         driver_code = st.session_state.get('selected_driver', df_overall_filtered_top5.iloc[0]['code'])
-        with st.spinner("Loading fastest lap telemetry..."):
+        
+        with st.spinner(f"Loading {selected_metric} telemetry..."):
             try:
-                fig = plot_speed_heatmap(selected_year, selected_location, driver_code=driver_code)
-                st.pyplot(fig, width='stretch')
+                fig = plot_telemetry_heatmap(
+                    selected_year, 
+                    selected_location, 
+                    driver_code=driver_code,
+                    metric=selected_metric
+                )
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig) 
             except Exception as e:
                 st.error("⚠️ Could not load telemetry data.")
                 st.exception(e)
 
-    st.write("Top 5 drivers DF (for testing)")
-    st.write(df_overall_filtered_top5)
+    st.dataframe(df_overall_filtered_top5, use_container_width=True)
