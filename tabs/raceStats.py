@@ -5,7 +5,7 @@ from matplotlib.collections import LineCollection
 import numpy as np
 import os
 import pandas as pd
-from utils.loadDatasets import *
+from utils.loadDatasets import load_merged_dateset
 
 # ============================================================
 #  HELPER FUNCTIONS
