@@ -22,7 +22,7 @@ def create_fastf1_session(year, location):
     session.load()  # must load to access telemetry
     return session
 
-@st.cache_data(show_spinner="Loading telemetry data...")
+@st.cache_data(show_spinner="Loading Telemetry data...")
 def load_driver_telemetry(year: int, location: str, driver_code: str):
     """
     Load telemetry for the fastest lap of a given driver, year, and race.
@@ -205,103 +205,231 @@ def driver_selection_component(df_top5: pd.DataFrame) -> str:
 # ============================================================
 #  MAIN RACE STATS TAB
 # ============================================================
+def format_time_delta(time_str, winner_time_str):
+    """Calculate time delta from winner"""
+    if pd.isna(time_str) or time_str == '' or time_str == winner_time_str:
+        return ""
+    try:
+        # Simple string comparison for display
+        return f"+{time_str}"
+    except:
+        return ""
+
+def get_position_badge(position):
+    """Return styled position indicator"""
+    if position == 1:
+        return "🥇"
+    elif position == 2:
+        return "🥈"
+    elif position == 3:
+        return "🥉"
+    else:
+        return f"P{position}"
 
 def raceStatsTab():
     st.header("🏎️ Race Statistics")
-    st.markdown("### 🔍 Select Race")
-
+    
+    # Load data
     df_overall = get_overall_data()
     available_years = get_race_years(df_overall)
     available_locations = get_race_locations(df_overall)
 
+    # Initialize session state
     if "selected_year" not in st.session_state:
         st.session_state.selected_year = available_years[0]
-
     if "selected_location" not in st.session_state:
-        # choose the first valid location for that year
         st.session_state.selected_location = df_overall.loc[
             df_overall["year"] == st.session_state.selected_year, "location"
         ].iloc[0]
+    if "selected_driver" not in st.session_state:
+        st.session_state.selected_driver = None
 
-    #  Filter options dynamically
+    # Filter available locations
     filtered_locations = df_overall.loc[
         df_overall["year"] == st.session_state.selected_year, "location"
     ].unique()
 
+    # Race selector
     col1, col2 = st.columns(2)
     with col1:
         selected_year = st.selectbox(
-            "Select Year",
+            "📅 Select Year",
             available_years,
             index=available_years.index(st.session_state.selected_year),
-            key="selected_year",
-            on_change=lambda: st.session_state.update({"selected_location": None})
+            key="selected_year"
         )
-
     with col2:
         selected_location = st.selectbox(
-            "Select Location",
+            "🏁 Select Circuit",
             filtered_locations,
-            index=0 if st.session_state.selected_location not in filtered_locations else list(filtered_locations).index(st.session_state.selected_location),
+            index=0 if st.session_state.selected_location not in filtered_locations 
+                  else list(filtered_locations).index(st.session_state.selected_location),
             key="selected_location"
         )
 
-    # --- Filter data for selected race ---
-    df_overall_filtered = df_overall.loc[
+    # Filter race data
+    df_race = df_overall.loc[
         (df_overall['location'] == selected_location) &
         (df_overall['year'] == selected_year)
-    ].sort_values(by='positionOrder', ascending=True)
+    ].sort_values(by='positionOrder', ascending=True).copy()
 
-    if df_overall_filtered.empty:
-        st.warning("No race data for that selection.")
+    if df_race.empty:
+        st.warning("⚠️ No race data available for this selection.")
         return
 
-    st.subheader(df_overall_filtered.iloc[0]['name_race'])
-
-    col1, col2 = st.columns([2, 1], vertical_alignment="top")
-
+    # Race header with key info
+    race_name = df_race.iloc[0]['name_race']
+    winner = df_race.iloc[0]
+    
+    st.markdown(f"## {race_name}")
+    
+    # Quick stats bar
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        df_overall_filtered['Driver'] = df_overall_filtered['forename'] + " " + df_overall_filtered['surname']
-        list_display_cols = ['Driver', 'code', 'name', 'positionOrder', 'points', 'time_results', 'fastestLapTime', 'fastestLapSpeed']
-        df_overall_filtered_top5 = df_overall_filtered[list_display_cols].iloc[:5]
-
-        selected_driver = driver_selection_component(df_overall_filtered_top5)
-
+        st.metric("🏆 Winner", f"{winner['forename']} {winner['surname']}")
     with col2:
-        # Metric selector
-        metric_options = ['Speed', 'Throttle', 'Brake', 'RPM', 'Gear', 'DRS']
-        metric_descriptions = {
-            "Speed": "🏎️ Car speed in km/h at each point on track",
-            "Throttle": "⚡ Throttle position percentage (0-100%)",
-            "Brake": "🛑 Brake application pressure",
-            "RPM": "🔄 Engine revolutions per minute",
-            "Gear": "⚙️ Current gear selection (1-8)",
-            "DRS": "💨 DRS activation zones and usage"
-        }
+        st.metric("⏱️ Winning Time", winner['time_results'])
+    with col3:
+        st.metric("🚀 Fastest Lap", f"{winner['fastestLapTime']}")
+    with col4:
+        st.metric("💨 Top Speed", f"{winner['fastestLapSpeed']} km/h")
+    
+    st.divider()
+
+    # Main content: Results table + Telemetry
+    col_left, col_right = st.columns([3, 2], gap="large")
+
+    with col_left:
+        st.subheader("📊 Race Results")
         
-        selected_metric = st.selectbox(
-            "📊 Select Telemetry Metric",
-            metric_options,
-            index=0,
-            help="Choose which telemetry data to visualize on the track map"
+        # Prepare display dataframe
+        df_race['Driver'] = df_race['forename'] + " " + df_race['surname']
+        df_race['Pos'] = df_race['positionOrder'].apply(get_position_badge)
+        df_race['Gap'] = df_race.apply(
+            lambda row: format_time_delta(row['time_results'], winner['time_results']), 
+            axis=1
         )
         
-        st.info(metric_descriptions[selected_metric])
+        # Display table with custom formatting
+        display_df = df_race[['Pos', 'Driver', 'name', 'points', 'Gap', 
+                               'fastestLapTime', 'fastestLapSpeed']].head(10)
+        display_df.columns = ['Pos', 'Driver', 'Team', 'Points', 'Gap', 
+                               'Fastest Lap', 'Top Speed (km/h)']
         
-        driver_code = st.session_state.get('selected_driver', df_overall_filtered_top5.iloc[0]['code'])
+        # Driver selector (place BEFORE styling to avoid lag)
+        st.markdown("##### 🎯 Select Driver for Telemetry Analysis")
+        driver_options = df_race.head(10).apply(
+            lambda row: f"{row['Driver']} ({row['code']})", axis=1
+        ).tolist()
         
-        with st.spinner(f"Loading {selected_metric} telemetry..."):
+        # Get previously selected driver or default to first
+        if "selected_driver_code" not in st.session_state:
+            st.session_state.selected_driver_code = df_race.iloc[0]['code']
+        
+        # Find index of previously selected driver
+        default_index = 0
+        for idx, option in enumerate(driver_options):
+            if st.session_state.selected_driver_code in option:
+                default_index = idx
+                break
+        
+        selected_driver_display = st.selectbox(
+            "Driver",
+            driver_options,
+            index=default_index,
+            label_visibility="collapsed",
+            key="driver_selector"
+        )
+        
+        # Extract and store driver code
+        driver_code = selected_driver_display.split('(')[1].split(')')[0]
+        st.session_state.selected_driver_code = driver_code
+        
+        # Style the dataframe (now uses updated driver_code)
+        def highlight_selected(row):
+            # Get driver code from the display name for comparison
+            driver_name = row['Driver']
+            row_driver_code = df_race[df_race['Driver'] == driver_name]['code'].values
+            if len(row_driver_code) > 0 and row_driver_code[0] == st.session_state.selected_driver_code:
+                return ['background-color: rgba(255, 75, 75, 0.2)'] * len(row)
+            return [''] * len(row)
+        
+        styled_df = display_df.style.apply(highlight_selected, axis=1)
+        
+        st.dataframe(
+            styled_df,
+            width='stretch',
+            hide_index=True,
+            height=400
+        )
+
+    with col_right:
+        st.subheader("📡 Telemetry Analysis")
+        
+        metric_categories = {
+            "Speed & Performance": {
+                "Speed": {"icon": "🏎️", "desc": "Car speed at each point"},
+                "RPM": {"icon": "🔄", "desc": "Engine revolutions"},
+            },
+            "Driver Inputs": {
+                "Throttle": {"icon": "⚡", "desc": "Throttle application"},
+                "Brake": {"icon": "🛑", "desc": "Brake pressure"},
+                "Gear": {"icon": "⚙️", "desc": "Gear selection"},
+            },
+            "Aerodynamics": {
+                "DRS": {"icon": "💨", "desc": "DRS zones & usage"},
+            }
+        }
+        
+        all_metrics = []
+        for category, metrics in metric_categories.items():
+            all_metrics.extend(metrics.keys())
+        
+        selected_metric = st.selectbox(
+            "📊 Telemetry Metric",
+            all_metrics,
+            index=0
+        )
+        
+        for category, metrics in metric_categories.items():
+            if selected_metric in metrics:
+                st.info(f"{metrics[selected_metric]['icon']} {metrics[selected_metric]['desc']}")
+                break
+        
+        # Generate telemetry plot
+        with st.spinner(f"Loading {selected_metric} data..."):
             try:
                 fig = plot_telemetry_heatmap(
-                    selected_year, 
-                    selected_location, 
+                    selected_year,
+                    selected_location,
                     driver_code=driver_code,
                     metric=selected_metric
                 )
-                st.pyplot(fig, use_container_width=True)
-                plt.close(fig) 
+                st.pyplot(fig, width='stretch')
+                plt.close(fig)
             except Exception as e:
-                st.error("⚠️ Could not load telemetry data.")
-                st.exception(e)
+                st.error("⚠️ Telemetry data unavailable")
+                with st.expander("View error details"):
+                    st.exception(e)
+        
+        # Additional stats for selected driver
+        driver_data = df_race[df_race['code'] == driver_code].iloc[0]
+        
+        with st.container(border=True):
+            st.markdown(f"**{driver_data['Driver']}** - {driver_data['name']}")
+            
+            stat_col1, stat_col2 = st.columns(2)
+            with stat_col1:
+                st.metric("Position", driver_data['positionOrder'])
+                st.metric("Points", driver_data['points'])
+            with stat_col2:
+                st.metric("Fastest Lap", driver_data['fastestLapTime'])
+                st.metric("Top Speed", f"{driver_data['fastestLapSpeed']} km/h")
 
-    st.dataframe(df_overall_filtered_top5, use_container_width=True)
+    # Optional: Expandable section for full results
+    with st.expander("📋 View Complete Race Results"):
+        full_results = df_race[['positionOrder', 'Driver', 'name', 'points', 
+                                 'time_results', 'fastestLapTime', 'fastestLapSpeed']]
+        full_results.columns = ['Position', 'Driver', 'Team', 'Points', 
+                                'Time', 'Fastest Lap', 'Top Speed (km/h)']
+        st.dataframe(full_results, width='stretch', hide_index=True)
