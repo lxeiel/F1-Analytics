@@ -3,7 +3,7 @@ from utils.loadDatasets import *
 
 @st.cache_data
 def get_overall_data():
-    return load_merged_dateset()
+    return load_merged_dataset()
 
 def driverStatsTab():
     st.header("👨‍✈️ Driver Statistics")

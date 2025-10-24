@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit
 
-def load_merged_dateset():
+def load_merged_dataset():
     races = pd.read_csv('Dataset/races.csv')
     drivers = pd.read_csv('Dataset/drivers.csv')
     constructors = pd.read_csv('Dataset/constructors.csv')

@@ -5,7 +5,7 @@ from matplotlib.collections import LineCollection
 import numpy as np
 import os
 import pandas as pd
-from utils.loadDatasets import load_merged_dateset
+from utils.loadDatasets import load_merged_dataset
 
 # ============================================================
 #  HELPER FUNCTIONS
@@ -161,7 +161,7 @@ def plot_telemetry_heatmap(selected_year, selected_location, driver_code='VER', 
 
 @st.cache_data
 def get_overall_data():
-    return load_merged_dateset()
+    return load_merged_dataset()
 
 @st.cache_data
 def get_race_locations(df_circuit_race):
