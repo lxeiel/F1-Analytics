@@ -1,7 +1,7 @@
 import streamlit as st
 from tabs.raceStats import raceStatsTab
 from tabs.driverStats import driverStatsTab
-from tabs.overallStats import overallStatsTab
+from tabs.overallStats import homeTab
 
 st.set_page_config(
     page_title="F1 Dashboard",
@@ -13,7 +13,7 @@ st.title("🏁 F1 Dashboard")
 
 tabs = st.tabs(["Home", "Races", "Drivers", "Constructors", "Forecasting (?)"])
 with tabs[0]:
-    overallStatsTab()
+    homeTab()
 with tabs[1]:
     raceStatsTab()
 with tabs[2]:
