@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils.loadDatasets import load_merged_dateset
+from utils.loadDatasets import load_merged_dataset
 
 # ============================================================
 # Load dataset once and cache
