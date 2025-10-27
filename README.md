@@ -18,3 +18,23 @@ pip install -r requirements.txt
 ```powershell
 streamlit run app.py
 ```
+
+## Tabs
+- Home: Key statistics and trends across seasons.
+- Races: Pick a year and circuit, view race results and telemetry heatmaps.
+- Drivers: (WIP) Driver-specific analytics.
+- Constructors: Team analytics with:
+	- Points by Season
+	- Wins and Podiums
+	- Average Finish and Top 10 Finishes
+	- Standings Rank by Season
+	- Race Finish Distribution (toggle counts/% per team)
+	- Year-over-Year Points Change and head-to-head comparison
+
+### macOS quick start
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
