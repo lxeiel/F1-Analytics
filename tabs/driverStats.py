@@ -7,7 +7,7 @@ from utils.loadDatasets import load_merged_dateset
 # ============================================================
 @st.cache_data
 def get_overall_data():
-    return load_merged_dateset()
+    return load_merged_dataset()
 
 # ============================================================
 # Driver Stats Tab
