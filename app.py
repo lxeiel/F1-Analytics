@@ -5,6 +5,7 @@ from tabs.overallStats import homeTab
 from tabs.constructorStats import constructorStatsTab
 from tabs.weatherAnalysis import weatherAnalysisTab
 from tabs.forecasting import forecastingTab
+from tabs.tireAnalysis import tireAnalysisTab
 
 st.set_page_config(
     page_title="F1 Dashboard",
@@ -14,7 +15,7 @@ st.set_page_config(
 
 st.title("🏁 F1 Dashboard")
 
-tabs = st.tabs(["Home", "Races", "Drivers", "Constructors", "Forecasting", "Weather Analysis"])
+tabs = st.tabs(["Home", "Races", "Drivers", "Constructors", "Forecasting", "Weather Analysis","Tire Analysis"])
 with tabs[0]:
     homeTab()
 with tabs[1]:
@@ -27,4 +28,6 @@ with tabs[4]:
     forecastingTab()
 with tabs[5]:
     weatherAnalysisTab()
+with tabs[6]:
+    tireAnalysisTab()
 
