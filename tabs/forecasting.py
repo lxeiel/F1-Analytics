@@ -353,13 +353,14 @@ def forecastingTab():
     champs, titles_by_constructor = compute_constructor_champions(season_totals)
     counts_global = global_gap_counts(titles_by_constructor)
 
-    with st.expander("⚙️ Constructor Comeback Settings"):
-        k_max = st.slider("Max gap horizon (years)", 10, 40, 25, 1)
-        laplace_alpha = st.slider("Laplace smoothing α", 0.0, 2.0, 0.5, 0.1)
-        c_window = st.slider("Constructor recency window (historical seasons)", 2, 6, 3, 1)
-        c_decay = st.slider("Constructor recency decay (per season)", 0.4, 0.95, 0.70, 0.05)
-        beta_hist = st.slider("Momentum adjustment strength β (historical)", 0.0, 1.0, 0.35, 0.05)
-        beta_2025 = st.slider("2025 momentum strength β₂₀₂₅", 0.0, 1.0, 0.40, 0.05)
+    # Fixed Constructor Comeback settings (no UI controls)
+    k_max = 25            # max gap horizon (years)
+    laplace_alpha = 0.5   # Laplace smoothing alpha
+    c_window = 3          # recency window (historical seasons)
+    c_decay = 0.70        # recency decay per season
+    beta_hist = 0.35      # momentum adjustment strength (historical)
+    beta_2025 = 0.40      # momentum adjustment strength (2025 season)
+
 
     global_pmf = build_smoothed_pmf(counts_global, k_max=k_max, laplace_alpha=laplace_alpha)
     hist_momentum = recency_momentum(
@@ -491,39 +492,110 @@ def forecastingTab():
     # -----------------------------------------------------------------
     st.subheader("🏁 2025 Race Winner Prediction (Select a Round)")
 
-    # Build 2025 calendar directly from 2025 CSVs (session='Race')
+    # ---------- Build 2025 calendar (robust) ----------
+    # Coerce rounds to integers across ALL sessions we have
+    df2025["round"] = pd.to_numeric(df2025["round"], errors="coerce").astype("Int64")
+
+    # Finished rounds are those that have a Race result row
+    finished_rounds = (
+        df2025[df2025["session"] == "Race"]["round"]
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    finished_rounds = sorted(finished_rounds)
+
+    # Season length from the 2025 grid definition (default 24)
+    _grid_df = get_2025_grid()
+    season_len = int(_grid_df["round"].max()) if not _grid_df.empty else 24
+    all_rounds = list(range(1, season_len + 1))
+
+
+    # Calendar for existing races we know names for (from any session)
     calendar_2025 = (
-        df2025[df2025["session"] == "Race"][["round","race_name"]]
+        df2025[["round", "race_name"]]
+        .dropna(subset=["round"])
         .drop_duplicates()
+        .astype({"round": int})
         .sort_values("round")
         .reset_index(drop=True)
     )
-    finished_rounds = sorted(calendar_2025["round"].dropna().unique().tolist())
-    max_finished = max(finished_rounds) if finished_rounds else 0
 
-    # Remaining rounds (future)
-    remaining = calendar_2025[calendar_2025["round"] > max_finished].copy()
+    # Build a full calendar frame [1..season_len]; fill names when we have them
+    calendar_full = pd.DataFrame({"round": all_rounds}).merge(
+        calendar_2025, on="round", how="left"
+    )
+    calendar_full["race_name"] = calendar_full["race_name"].fillna(
+        calendar_full["round"].apply(lambda r: f"Round {r}")
+    )
+
+    # Remaining rounds = those NOT in finished_rounds
+    remaining = calendar_full[~calendar_full["round"].isin(finished_rounds)].copy()
+
     if remaining.empty:
-        st.success("All rounds appear completed in your 2025 dataset.")
-        remaining = calendar_2025.iloc[0:0].copy()
+        st.info(
+            "ℹ️ No ‘remaining’ rounds detected. "
+            "This can happen if RaceResults already include all rounds or "
+            "if the ‘round’ column wasn’t parsed correctly."
+        )
 
-    race_options = remaining["round"].tolist() or ([max_finished] if max_finished else [])
+    # Dropdown uses remaining (fallback to last finished if truly none)
+    race_options = remaining["round"].tolist() or (finished_rounds[-1:] if finished_rounds else [1])
     selected_round = st.selectbox("Select upcoming round", race_options, index=0)
 
-    # Info about selected race
-    race_row_25 = calendar_2025[calendar_2025["round"] == selected_round]
+    # Selected race info — prefer Track/track column; else strip "Grand Prix" to get country-ish label
+    race_row_25 = calendar_full.loc[calendar_full["round"] == selected_round]  
     sel_race_name = race_row_25["race_name"].iloc[0] if not race_row_25.empty else f"Round {selected_round}"
-    sel_circuit = map_track_to_circuit_id(sel_race_name, df_hist)
 
-    with st.expander("⚙️ Prediction Settings"):
-        gamma = st.slider("γ — circuit vs overall blend", 0.0, 1.0, 0.45, 0.05)
-        w_team_2025 = st.slider("Team momentum weight (2025)", 0.0, 0.3, 0.10, 0.01)
-        w_hist = st.slider("Historical driver form weight", 0.0, 1.0, 0.60, 0.05)
-        w_2025 = st.slider("2025 driver form weight", 0.0, 1.0, 0.40, 0.05)
-        w_quali = st.slider("Qualifying boost (if we have 2025 quali for this round)", 0.0, 0.3, 0.08, 0.01)
-        temp = st.slider("Softmax temperature τ (spread)", 0.3, 2.5, 1.0, 0.1)
-        topK = st.slider("Show Top-K", 1, 5, 3, 1)
-        st.caption("Bars below are coloured by each driver's 2025 team.")
+    # Try to get the 'Track' (country) name from  2025 CSVs
+    track_col = "Track" if "Track" in df2025.columns else ("track" if "track" in df2025.columns else None)
+    track_name = None
+    if track_col is not None:
+        track_vals = (
+            df2025.loc[df2025["round"] == selected_round, track_col]
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+            .tolist()
+        )
+        track_name = track_vals[0] if track_vals else None
+
+    def _extract_country(name: str) -> Optional[str]:
+        if not isinstance(name, str):
+            return None
+        # e.g. "Spanish Grand Prix" -> "Spanish"; "São Paulo Grand Prix" -> "São Paulo"
+        if "Grand Prix" in name:
+            return (
+                name.replace("FORMULA 1", "")
+                    .replace("Grand Prix", "")
+                    .replace("™", "")
+                    .strip(" -")
+            )
+        return name.strip()
+
+    # Final display name for titles
+    sel_display_name = track_name or _extract_country(sel_race_name) or f"Round {selected_round}"
+
+    # Circuit id (unchanged logic)
+    sel_circuit = map_track_to_circuit_id(sel_display_name, df_hist) or map_track_to_circuit_id(sel_race_name, df_hist)
+
+
+    # And when you later need the total_rounds / remaining_rounds for WDC:
+    total_rounds = season_len
+    remaining_rounds = remaining["round"].tolist()
+
+    # Fixed prediction settings (no UI controls)
+    gamma = 0.45          # circuit vs overall blend
+    w_team_2025 = 0.10    # team momentum weight (2025)
+    w_hist = 0.60         # historical driver form weight
+    w_2025 = 0.40         # 2025 driver form weight
+    w_quali = 0.08        # qualifying boost if quali exists for that round
+    temp = 1.0            # softmax temperature
+    topK = 3              # number of bars to display
+    st.caption("Bars are coloured by each driver's 2025 team.")
+
 
     # 2025 driver performance so far (Race + Sprint points)
     d2025_results = df2025[df2025["session"].isin(["Race","Sprint"])].copy()
@@ -563,9 +635,10 @@ def forecastingTab():
         c_sel = pd.DataFrame(columns=["Driver","c_score"])
 
     # Drivers actually eligible that round
-    total_rounds = int(calendar_2025["round"].max()) if not calendar_2025.empty else 24
-    grid = get_2025_grid(rounds=total_rounds)
+    # Drivers actually eligible that round
+    grid = get_2025_grid(rounds=season_len)
     elig = grid[grid["round"] == selected_round][["Driver","Team"]].copy()
+
 
     # Merge all scoring components
     merged = elig.merge(d_form_hist, on="Driver", how="left")
@@ -631,7 +704,7 @@ def forecastingTab():
         ]
     )
     fig_topk.update_layout(
-        title=f"Round {selected_round}: {sel_race_name} — Top-{topK} Win Probabilities",
+        title=f"{sel_display_name} — Top-{topK} Win Probabilities",
         yaxis_title="Win Probability",
         xaxis_title="Driver",
         yaxis_tickformat=".0%",
@@ -666,8 +739,7 @@ def forecastingTab():
     points_map = {1:25, 2:18, 3:15, 4:12, 5:10, 6:8, 7:6, 8:4, 9:2, 10:1}
 
     # expected points across remaining rounds
-    total_rounds = int(calendar_2025["round"].max()) if not calendar_2025.empty else 24
-    grid_all_rounds = get_2025_grid(rounds=total_rounds)
+    grid_all_rounds = get_2025_grid(rounds=season_len)
 
     exp_points = {drv: 0.0 for drv in grid_all_rounds["Driver"].unique()}
 
