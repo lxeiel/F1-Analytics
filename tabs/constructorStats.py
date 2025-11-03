@@ -3,55 +3,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.loadDatasets import load_merged_dataset
+from utils.teamColors import get_team_color_map, hex_to_rgba, TEAM_COLORS
 
 
 # ============================================================
 #  DATA LOADING HELPERS
 # ============================================================
-
-# Team brand color palette (best-effort mapping; falls back when missing)
-TEAM_COLORS = {
-    # Modern teams
-    'Red Bull': '#1E5BC6', 'Oracle Red Bull Racing': '#1E5BC6', 'Red Bull Racing': '#1E5BC6',
-    'Ferrari': '#DC0000', 'Scuderia Ferrari': '#DC0000',
-    'Mercedes': '#00A19C', 'Mercedes AMG Petronas': '#00A19C', 'Mercedes GP Petronas': '#00A19C',
-    'McLaren': '#FF8700', 'McLaren F1 Team': '#FF8700',
-    'Aston Martin': '#006F62', 'Aston Martin Aramco': '#006F62',
-    'Alpine F1 Team': '#0090FF', 'Alpine': '#0090FF', 'Renault': '#FFF500',
-    'Williams': '#005AFF', 'Williams Racing': '#005AFF',
-    'RB': '#2B2D42', 'AlphaTauri': '#2B2D42', 'Toro Rosso': '#001F5F',
-    'Haas F1 Team': '#B6BABD', 'Haas': '#B6BABD',
-    'Sauber': '#900000', 'Stake F1 Team': '#0FA958', 'Alfa Romeo': '#900000',
-    # Historic / legacy
-    'Racing Point': '#F596C8', 'Force India': '#FF80C0',
-    'Lotus F1': '#FFB800', 'Brawn': '#C8FF00', 'BMW Sauber': '#1F497D',
-    'Toyota': '#EB0A1E', 'Honda': '#E4002B', 'Minardi': '#2E2E2E',
-    'Benetton': '#009BDE', 'Jordan': '#F7D117', 'BAR': '#C3002F',
-}
-
-def _hex_to_rgba(hex_color: str, alpha: float = 0.4) -> str:
-    if not hex_color or not isinstance(hex_color, str) or not hex_color.startswith('#'):
-        return 'rgba(31,119,180,0.4)'
-    hex_color = hex_color.lstrip('#')
-    if len(hex_color) == 3:
-        hex_color = ''.join([c*2 for c in hex_color])
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
-    return f'rgba({r},{g},{b},{alpha})'
-
-def get_team_color_map(teams: list[str]) -> dict:
-    # Provide brand colors when known; otherwise cycle Plotly qualitative palette
-    palette = px.colors.qualitative.Safe + px.colors.qualitative.Set3 + px.colors.qualitative.Alphabet
-    color_map = {}
-    idx = 0
-    for t in teams:
-        if t in TEAM_COLORS:
-            color_map[t] = TEAM_COLORS[t]
-        else:
-            color_map[t] = palette[idx % len(palette)]
-            idx += 1
-    return color_map
 
 @st.cache_data
 def get_overall_data() -> pd.DataFrame:
@@ -605,11 +562,29 @@ def constructorStatsTab():
                         sources.append(label_to_idx[team])
                         targets.append(label_to_idx[bucket])
                         values.append(int(row['count']))
+                
+                # Build node colors: team colors for teams, neutral gray for result buckets
+                node_colors = []
+                for label in labels:
+                    if label in team_colors:
+                        node_colors.append(team_colors[label])
+                    else:
+                        node_colors.append('#9e9e9e')  # Gray for result buckets
+                
+                # Build link colors based on source team color with transparency
+                link_colors = []
+                for src_idx in sources:
+                    src_label = labels[src_idx]
+                    if src_label in team_colors:
+                        link_colors.append(hex_to_rgba(team_colors[src_label], 0.4))
+                    else:
+                        link_colors.append('rgba(158,158,158,0.4)')
+                
                 sankey = go.Figure(
                     data=[go.Sankey(
                         arrangement='snap',
-                        node=dict(pad=15, thickness=15, label=labels),
-                        link=dict(source=sources, target=targets, value=values)
+                        node=dict(pad=15, thickness=15, label=labels, color=node_colors),
+                        link=dict(source=sources, target=targets, value=values, color=link_colors)
                     )]
                 )
                 sankey.update_layout(height=520, margin=dict(t=40, b=40))
@@ -829,7 +804,7 @@ def constructorStatsTab():
                             fill='toself',
                             name=row['team'],
                             line=dict(color=col, width=2),
-                            fillcolor=_hex_to_rgba(col, 0.25)
+                            fillcolor=hex_to_rgba(col, 0.25)
                         ))
                     radar_fig.update_layout(
                         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),

@@ -168,20 +168,20 @@ def driverStatsTab():
         dfc = dfc.dropna(subset=['grid', 'positionOrder'])
         def g_bucket(g):
             if g == 1:
-                return 'P1'
+                return 'Start: P1'
             if 2 <= g <= 5:
-                return 'P2-5'
+                return 'Start: P2-5'
             if 6 <= g <= 10:
-                return 'P6-10'
-            return 'P11+'
+                return 'Start: P6-10'
+            return 'Start: P11+'
         def f_bucket(p):
             if p == 1:
-                return 'Win'
+                return 'Finish: Win'
             if 2 <= p <= 3:
-                return 'Podium'
+                return 'Finish: Podium'
             if 4 <= p <= 10:
-                return 'Points'
-            return 'P11+'
+                return 'Finish: Points'
+            return 'Finish: P11+'
         dfc['gb'] = dfc['grid'].apply(g_bucket)
         dfc['fb'] = dfc['positionOrder'].apply(f_bucket)
         flow = dfc.groupby(['gb', 'fb'], as_index=False).size().rename(columns={'size': 'count'})

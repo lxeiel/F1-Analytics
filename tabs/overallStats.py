@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.loadDatasets import *#load_merged_dataset
+from utils.teamColors import get_team_color_map, TEAM_COLORS
 
 @st.cache_data
 def load_data():
@@ -250,12 +251,16 @@ def homeTab():
         top_teams = team_performance.groupby('team')['points'].sum().sort_values(ascending=False).head(5).index
         team_performance_filtered = team_performance[team_performance['team'].isin(top_teams)]
         
+        # Generate team color map
+        team_colors = get_team_color_map(top_teams.tolist())
+        
         fig_teams = px.area(
             team_performance_filtered,
             x='year',
             y='points',
             color='team',
-            labels={'points': 'Total Points', 'year': 'Year', 'team': 'Team'}
+            labels={'points': 'Total Points', 'year': 'Year', 'team': 'Team'},
+            color_discrete_map=team_colors
         )
         fig_teams.update_layout(
             hovermode='x unified',
@@ -412,10 +417,14 @@ def homeTab():
             if yr_df.empty:
                 st.info("No data for the selected year.")
             else:
+                # Generate team color map for the selected year
+                team_colors_bubble = get_team_color_map(yr_df['team'].unique().tolist())
+                
                 fig_bub = px.scatter(
                     yr_df,
                     x='avg_speed', y='dnf_rate', size='points', color='team', hover_name='team',
                     labels={'avg_speed': 'Avg Fastest Lap (km/h)', 'dnf_rate': 'DNF Rate'},
+                    color_discrete_map=team_colors_bubble
                 )
                 fig_bub.update_layout(height=520, legend=dict(orientation='h', yanchor='bottom', y=-0.25))
                 st.plotly_chart(fig_bub, use_container_width=True)
