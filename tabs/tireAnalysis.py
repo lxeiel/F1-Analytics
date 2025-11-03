@@ -267,3 +267,64 @@ def tireAnalysisTab():
     
     st.divider()
     st.caption(f"📊 Tire strategy data for {selected_location} {selected_year} | Powered by FastF1")
+
+    # =====================
+    # 📚 Story-driven Deep Dives (Tires)
+    # =====================
+    st.markdown("### 📚 Story-driven Deep Dives")
+    td1, td2 = st.tabs([
+        "Strategy Archetypes",
+        "Degradation Curves",
+    ])
+
+    # --- Strategy Archetypes: Parallel Categories of stint sequences ---
+    with td1:
+        st.caption("What patterns do strategies follow? Explore stint compound sequences by driver.")
+        try:
+            seq = strategy_df.sort_values(['Driver', 'StintNumber'])
+            max_stints = int(seq.groupby('Driver')['StintNumber'].max().max())
+            max_stints = min(max_stints, 5)
+            wide = seq.pivot_table(index='DriverName', columns='StintNumber', values='Compound', aggfunc='first')
+            # limit to first N stints for readability
+            wide = wide.loc[:, [c for c in wide.columns if c <= max_stints]]
+            wide = wide.reset_index().rename_axis(None, axis=1)
+            if wide.empty:
+                st.info("No stint sequences available.")
+            else:
+                dims = [dict(label='Driver', values=wide['DriverName'])]
+                for s in sorted([c for c in wide.columns if c != 'DriverName']):
+                    dims.append(dict(label=f'Stint {s}', values=wide[s].fillna('')))
+                fig_pc = go.Figure(data=[go.Parcats(dimensions=dims, line={'color': '#999'}, bundlecolors=True)])
+                fig_pc.update_layout(height=520, margin=dict(t=20, b=10, l=10, r=10))
+                st.plotly_chart(fig_pc, use_container_width=True)
+        except Exception as e:
+            st.warning("Unable to render strategy archetypes.")
+            with st.expander("Details"):
+                st.exception(e)
+
+    # --- Degradation Curves: Lap time vs Tyre Life per compound ---
+    with td2:
+        st.caption("How lap times evolve with tyre life, by compound (binned average).")
+        try:
+            session = create_fastf1_session(selected_year, selected_location)
+            laps = session.laps
+            if laps is None or laps.empty:
+                st.info("No lap data available for degradation analysis.")
+            else:
+                ld = laps[['Driver','LapNumber','LapTime','TyreLife','Compound']].copy()
+                ld = ld.dropna(subset=['LapTime', 'TyreLife', 'Compound'])
+                ld['LapTime_s'] = ld['LapTime'].dt.total_seconds()
+                # Bin tyre life
+                ld['LifeBin'] = pd.cut(ld['TyreLife'], bins=[0,5,10,15,20,25,30,50,100], include_lowest=True)
+                agg = ld.groupby(['Compound','LifeBin'], as_index=False)['LapTime_s'].mean()
+                # Order bins naturally by left edge and convert intervals to strings for JSON serialization
+                agg['bin_left'] = agg['LifeBin'].apply(lambda b: b.left if hasattr(b, 'left') else 0)
+                agg = agg.sort_values(['Compound','bin_left'])
+                agg['LifeBin_str'] = agg['LifeBin'].astype(str)
+                fig_deg = px.line(agg, x='LifeBin_str', y='LapTime_s', color='Compound', markers=True, labels={'LapTime_s':'Avg Lap Time (s)', 'LifeBin_str':'Tyre Life (laps)'})
+                fig_deg.update_layout(height=520, margin=dict(t=20, b=10, l=10, r=10))
+                st.plotly_chart(fig_deg, use_container_width=True)
+        except Exception as e:
+            st.warning("Unable to compute degradation curves.")
+            with st.expander("Details"):
+                st.exception(e)

@@ -514,3 +514,71 @@ def weatherAnalysisTab():
         
     st.divider()
     st.caption(f"📊 Weather data for {selected_location} {selected_year} | Powered by FastF1")
+
+    # =====================
+    # 📚 Story-driven Deep Dives (Weather)
+    # =====================
+    st.markdown("### 📚 Story-driven Deep Dives")
+    wd1, wd2 = st.tabs([
+        "Lap Time Sensitivity",
+        "Weather Regimes",
+    ])
+
+    # --- Lap Time Sensitivity: per-driver correlation heatmap ---
+    with wd1:
+        st.caption("Which drivers are most sensitive to which weather factors? Correlation of lap time vs weather.")
+        with st.spinner("Computing correlations..."):
+            lw = get_lap_times_with_weather(selected_year, selected_location)
+        if lw is None or lw.empty:
+            st.info("No lap-weather dataset available.")
+        else:
+            # driver selection
+            driver_names = sorted(lw['DriverName'].unique())
+            pick = st.multiselect("Drivers", driver_names, default=driver_names[:5])
+            filt = lw[lw['DriverName'].isin(pick)] if pick else lw
+            rows = []
+            for drv, g in filt.groupby('DriverName'):
+                corr = g[['LapTime','AirTemp','TrackTemp','Humidity','WindSpeed','Pressure']].corr(numeric_only=True)
+                series = corr['LapTime'].drop('LapTime') if 'LapTime' in corr else None
+                if series is not None:
+                    for var, val in series.items():
+                        rows.append({'Driver': drv, 'Factor': var, 'Corr': val})
+            if not rows:
+                st.info("Not enough data to compute correlations.")
+            else:
+                cdf = pd.DataFrame(rows)
+                pivot = cdf.pivot(index='Driver', columns='Factor', values='Corr').fillna(0)
+                fig_hm = px.imshow(pivot, color_continuous_scale='RdBu', zmin=-1, zmax=1, labels=dict(color='Correlation'))
+                fig_hm.update_layout(height=520, margin=dict(t=20, b=10, l=10, r=10))
+                st.plotly_chart(fig_hm, use_container_width=True)
+
+    # --- Weather Regimes: timeline classification ---
+    with wd2:
+        st.caption("How the race evolves through weather regimes (Wet, Hot, Windy, Humid, Normal). Precedence: Wet > Hot > Windy > Humid > Normal.")
+        with st.spinner("Classifying regimes..."):
+            w = get_weather_data(selected_year, selected_location)
+        if w is None or w.empty:
+            st.info("No weather timeline available.")
+        else:
+            wf = w.copy()
+            # thresholds based on distribution
+            t_hot = wf['TrackTemp'].quantile(0.75) if 'TrackTemp' in wf else None
+            t_windy = wf['WindSpeed'].quantile(0.75) if 'WindSpeed' in wf else None
+            t_humid = wf['Humidity'].quantile(0.75) if 'Humidity' in wf else None
+            def classify(row):
+                if 'Rainfall' in row and bool(row['Rainfall']):
+                    return 'Wet'
+                if t_hot is not None and row.get('TrackTemp', 0) >= t_hot:
+                    return 'Hot'
+                if t_windy is not None and row.get('WindSpeed', 0) >= t_windy:
+                    return 'Windy'
+                if t_humid is not None and row.get('Humidity', 0) >= t_humid:
+                    return 'Humid'
+                return 'Normal'
+            wf['Regime'] = wf.apply(classify, axis=1)
+            wf['One'] = 1
+            fig_reg = px.bar(wf, x='Time', y='One', color='Regime', orientation='v', labels={'One':' '},
+                             color_discrete_map={'Wet':'#4E79A7','Hot':'#E15759','Windy':'#76B7B2','Humid':'#59A14F','Normal':'#B07AA1'})
+            fig_reg.update_yaxes(visible=False)
+            fig_reg.update_layout(height=180, margin=dict(t=10, b=10, l=10, r=10), showlegend=True)
+            st.plotly_chart(fig_reg, use_container_width=True)
