@@ -1,3 +1,11 @@
+streamlit
+fastf1
+matplotlib
+seaborn
+plotly>=5.12.0
+pandas>=1.5
+numpy>=1.24
+streamlit-plotly-events>=0.0.6
 altair==5.5.0
 attrs==25.4.0
 blinker==1.9.0

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 import plotly.express as px
-import plotly.graph_objects as go
+# interactivity helper (removed): clicks are not used anymore
 
 from utils.loadDatasets import load_merged_dataset
 from utils.loadDatasets2025 import load_merged_dataset_2025
@@ -335,6 +335,8 @@ def map_track_to_circuit_id(track: str, df_hist: pd.DataFrame) -> Optional[int]:
 # ============================================================
 def forecastingTab():
     st.header("📈 Forecasting — 2025 Season (uses 2025 results + historical)")
+    # debug/sample visuals disabled in UI
+    _debug_show_visuals = False
 
     # Load historical + 2025 season-to-date
     df_hist = get_historical_df()
@@ -382,6 +384,42 @@ def forecastingTab():
         )
         fig.update_layout(yaxis_tickformat=".0%")
         st.plotly_chart(fig, use_container_width=True)
+
+    # --- Heatmap: gap counts per constructor (shows which teams had repeats at which gaps)
+    if not global_pmf.empty or _debug_show_visuals:
+        try:
+            rows = []
+            for cid, yrs in titles_by_constructor.items():
+                if not yrs or len(yrs) < 2:
+                    for i in range(1, k_max + 1):
+                        rows.append({"constructorId": cid, "gap_years": i, "count": 0})
+                else:
+                    gaps = np.diff(sorted(yrs)).astype(int)
+                    for i in range(1, k_max + 1):
+                        rows.append({"constructorId": cid, "gap_years": i, "count": int((gaps == i).sum())})
+            mat = pd.DataFrame(rows) if rows else pd.DataFrame()
+            if mat.empty and _debug_show_visuals:
+                # create small synthetic sample
+                mat = pd.DataFrame([{"constructorId": 1, "gap_years": g, "count": int(np.random.poisson(1))} for g in range(1, 6)])
+                names = {1: "Sample Team"}
+            else:
+                names = season_totals.drop_duplicates(subset=["constructorId"]).set_index("constructorId")["name"].to_dict()
+            if not mat.empty:
+                mat["name"] = mat["constructorId"].map(lambda x: names.get(x, str(x)))
+                heat = mat.pivot(index="name", columns="gap_years", values="count").fillna(0)
+                if not heat.empty:
+                    # use team palette for the continuous scale to keep F1 colours
+                    fig_h = px.imshow(
+                        heat,
+                        labels={"x":"Gap Years","y":"Constructor","color":"Count"},
+                        aspect="auto",
+                        color_continuous_scale=list(TEAM_COLORS.values()),
+                        title="Constructor gap counts by gap length"
+                    )
+                    fig_h.update_xaxes(side="bottom")
+                    st.plotly_chart(fig_h, use_container_width=True)
+        except Exception:
+            pass
 
     # 2025 constructor momentum (actual points scored so far)
     cons_2025 = (
@@ -688,23 +726,20 @@ def forecastingTab():
     topk = merged.sort_values("p_win", ascending=False).head(topK).copy()
     topk["p_win_pct"] = topk["p_win"] * 100.0
 
-    # colour bars by Team using TEAM_COLORS via normalize_team
-    bar_colors = [team_color(t) for t in topk["Team"]]
-
-    fig_topk = go.Figure(
-        data=[
-            go.Bar(
-                x=topk["Driver"],
-                y=topk["p_win"],
-                marker_color=bar_colors,
-                text=[f"{drv} ({normalize_team(team)})<br>{prob:.1f}%"
-                      for drv, team, prob in zip(topk["Driver"], topk["Team"], topk["p_win_pct"])],
-                hovertemplate="%{text}<extra></extra>",
-            )
-        ]
+    # colour bars by Team using TEAM_COLORS via normalize_team (use plotly-express)
+    topk = topk.copy()
+    topk["Team_base"] = topk["Team"].apply(normalize_team)
+    color_map = {t: team_color(t) for t in topk["Team_base"].unique()}
+    fig_topk = px.bar(
+        topk,
+        x="Driver",
+        y="p_win",
+        color="Team_base",
+        color_discrete_map=color_map,
+        hover_data={"p_win":":.2f","Team_base":True},
+        title=f"{sel_display_name} — Top-{topK} Win Probabilities",
     )
     fig_topk.update_layout(
-        title=f"{sel_display_name} — Top-{topK} Win Probabilities",
         yaxis_title="Win Probability",
         xaxis_title="Driver",
         yaxis_tickformat=".0%",
@@ -712,6 +747,7 @@ def forecastingTab():
         showlegend=False,
     )
     st.plotly_chart(fig_topk, use_container_width=True)
+    # non-interactive Top-K (clicks disabled)
 
     st.dataframe(
         topk[["Driver","Team","p_win_pct"]].rename(columns={"p_win_pct":"Win Probability (%)"}),
@@ -720,6 +756,59 @@ def forecastingTab():
     )
 
     st.caption("Bars are tinted by each driver's 2025 team colour. Quali boost is applied only if that round has qualifying data.")
+
+    # --- Radar: component profile for Top-K drivers
+    if (not topk.empty) or _debug_show_visuals:
+        try:
+            radar_metrics = ["overall_hist", "form_2025", "c_score", "quali_boost", "team_mom_2025"]
+            radar_src = merged.set_index("Driver") if "Driver" in merged.columns else pd.DataFrame()
+            # if user clicked a driver, show only that one
+            drivers_to_plot = list(topk["Driver"]) if not topk.empty else radar_src.index.tolist()[:3]
+            if _debug_show_visuals and not drivers_to_plot:
+                # synthetic sample
+                drivers_to_plot = ["Driver A","Driver B","Driver C"]
+                radar_src = pd.DataFrame({m: np.random.rand(3) for m in radar_metrics}, index=drivers_to_plot)
+            # build a long-form dataframe suitable for px.line_polar
+            rlist = []
+            for drv in drivers_to_plot:
+                if drv not in radar_src.index:
+                    continue
+                row = radar_src.loc[drv]
+                for m in radar_metrics:
+                    val = float(row[m]) if m in radar_src.columns else 0.0
+                    rlist.append({"Driver": drv, "metric": m, "value": val, "Team": row.get("Team", None) if hasattr(row, 'get') else (radar_src.at[drv, 'Team'] if 'Team' in radar_src.columns else None)})
+            if rlist:
+                df_rad = pd.DataFrame(rlist)
+                # derive a base team column for each row (normalized team key)
+                if "Team" in df_rad.columns:
+                    df_rad["Team_base"] = df_rad["Team"].apply(lambda t: normalize_team(t) if pd.notna(t) else "Unknown")
+                else:
+                    df_rad["Team_base"] = "Unknown"
+
+                # Build a mapping driver -> team-colour so Plotly colours each driver's trace by their team
+                driver_list = df_rad["Driver"].unique().tolist()
+                driver_color_map = {}
+                for drv in driver_list:
+                    try:
+                        team_val = df_rad.loc[df_rad["Driver"] == drv, "Team_base"].iloc[0]
+                    except Exception:
+                        team_val = None
+                    driver_color_map[drv] = team_color(team_val)
+
+                # Use driver names for the colour scale (each driver gets their team's colour)
+                fig_rad = px.line_polar(
+                    df_rad,
+                    r="value",
+                    theta="metric",
+                    color="Driver",
+                    line_close=True,
+                    color_discrete_map=driver_color_map,
+                )
+                fig_rad.update_traces(fill="toself")
+                fig_rad.update_layout(title=f"Component profile — Top-{topK} drivers", polar=dict(radialaxis=dict(visible=True, range=[0,1])))
+                st.plotly_chart(fig_rad, use_container_width=True)
+        except Exception:
+            pass
 
     st.divider()
 
@@ -795,11 +884,50 @@ def forecastingTab():
             w_team_2025 * merged_r["team_mom_2025"]
         ) / weight_sum_future
 
-        # Expected points via softmax per finishing position
-        for pos, pts in points_map.items():
-            probs = softmax(merged_r["score"].values, temperature=1.0 + 0.15*(pos-1))
-            for i, row in merged_r.iterrows():
-                exp_points[row["Driver"]] += pts * probs[i]
+        # Expected points via a simple probabilistic ranking (Plackett-Luce style)
+        # We'll run a small Monte-Carlo to sample finishing orders proportionally to each
+        # driver's score to produce more realistic position-point expectations.
+        try:
+            rng = np.random.default_rng(12345)
+            n_sims = 400  # adjust for speed/accuracy tradeoff
+
+            drivers = merged_r["Driver"].tolist()
+            scores = merged_r["score"].to_numpy(dtype=float)
+            # shift to non-negative and ensure non-zero mass
+            if scores.size == 0:
+                continue
+            if scores.min() < 0:
+                scores = scores - scores.min()
+            if scores.sum() == 0:
+                scores = np.ones_like(scores)
+
+            # prepare accumulator
+            round_points_acc = {drv: 0.0 for drv in drivers}
+
+            for _ in range(n_sims):
+                remaining = list(range(len(drivers)))
+                # sample top-10 by iterative proportional sampling
+                for pos, pts in points_map.items():
+                    rem_scores = scores[remaining]
+                    total = rem_scores.sum()
+                    if total <= 0:
+                        # fallback: uniform among remaining
+                        probs = np.ones(len(remaining)) / len(remaining)
+                    else:
+                        probs = rem_scores / total
+                    chosen = rng.choice(remaining, p=probs)
+                    round_points_acc[drivers[chosen]] += pts
+                    remaining.remove(chosen)
+
+            # average over sims and add to exp_points
+            for drv, pts_sum in round_points_acc.items():
+                exp_points[drv] += pts_sum / float(n_sims)
+        except Exception:
+            # fallback to previous simple softmax method if MC fails
+            for pos, pts in points_map.items():
+                probs = softmax(merged_r["score"].values, temperature=1.0 + 0.15*(pos-1))
+                for i, row in merged_r.iterrows():
+                    exp_points[row["Driver"]] += pts * probs[i]
 
     # Combine with already scored
     wdc = pd.DataFrame({
@@ -837,26 +965,84 @@ def forecastingTab():
     wdc = wdc.merge(primary_team, on='Driver', how='left')
     wdc['Team_base'] = wdc['Team'].apply(normalize_team)
 
-    # Plot top-15 with team colours
+    # Plot top-15 with team colours (plotly-express)
     top15 = wdc.head(15).copy()
-    bar_colors = [team_color(t) for t in top15['Team']]
-
-    fig_wdc = go.Figure(go.Bar(
-        x=top15['Driver'],
-        y=top15['Total Expected (2025)'],
-        marker_color=bar_colors,
-        text=top15['Team_base'],
-        customdata=np.round(top15['Total Expected (2025)'], 1),
-        hovertemplate="%{x} — %{customdata} pts<br>%{text}<extra></extra>",
-    ))
-    fig_wdc.update_layout(
-        title="2025 WDC — Expected Points (Actual so far + Projected Remaining)",
-        xaxis_title="Driver",
-        yaxis_title="Expected Points",
-        bargap=0.2,
-        showlegend=False
+    top15['Team_base'] = top15['Team'].apply(normalize_team)
+    color_map_wdc = {t: team_color(t) for t in top15['Team_base'].unique()}
+    fig_wdc = px.bar(
+        top15,
+        x='Driver',
+        y='Total Expected (2025)',
+        color='Team_base',
+        color_discrete_map=color_map_wdc,
+        hover_data={'Total Expected (2025)':':.1f','Team_base':True},
+        title='2025 WDC — Expected Points (Actual so far + Projected Remaining)'
     )
+    fig_wdc.update_layout(xaxis_title='Driver', yaxis_title='Expected Points', bargap=0.2, showlegend=False)
     st.plotly_chart(fig_wdc, use_container_width=True)
+    # non-interactive WDC chart
+
+    # --- Violin: distribution of Total Expected per Team + Parallel Coordinates for top drivers
+    if (not wdc.empty and 'Team_base' in wdc.columns) or _debug_show_visuals:
+        try:
+            vdf = wdc.copy()
+            if vdf.empty and _debug_show_visuals:
+                # synthetic sample
+                vdf = pd.DataFrame({
+                    'Driver': ['A','B','C','D','E'],
+                    'Team_base': ['Team X','Team X','Team Y','Team Y','Team Z'],
+                    'Total Expected (2025)': np.random.uniform(10, 300, 5)
+                })
+            # (non-interactive) show violin distribution for available teams
+            if not vdf.empty:
+                # map Team_base categories to exact team hex colours
+                uniq_teams = sorted(vdf["Team_base"].dropna().unique().tolist())
+                color_map = {t: team_color(t) for t in uniq_teams}
+                fig_v = px.violin(
+                    vdf,
+                    x="Team_base",
+                    y="Total Expected (2025)",
+                    color="Team_base",
+                    color_discrete_map=color_map,
+                    box=True,
+                    points="all",
+                    title="Distribution of Total Expected (2025) by Team"
+                )
+                fig_v.update_layout(xaxis_title="Team", yaxis_title="Total Expected Points", showlegend=False)
+                st.plotly_chart(fig_v, use_container_width=True)
+
+            # Parallel coordinates for top-10 drivers to compare multi-dim signals
+            top_n = wdc.head(10).copy()
+            if top_n.empty and _debug_show_visuals:
+                top_n = pd.DataFrame({
+                    'Driver': ['A','B','C'],
+                    'points_so_far': [50,120,80],
+                    'Expected Points (remaining)': [30,40,20],
+                    'Total Expected (2025)': [80,160,100]
+                })
+            # (non-interactive) show parallel coordinates for top drivers
+            if not top_n.empty:
+                pcs = top_n[["Driver","Team","points_so_far","Expected Points (remaining)","Total Expected (2025)"]].copy()
+                pcs = pcs.rename(columns={"points_so_far":"Points So Far","Expected Points (remaining)":"Expected (Remaining)","Total Expected (2025)":"Total Expected","Team":"Team"})
+                # map teams to integer codes so we can apply a discrete colour scale
+                teams = pcs["Team"].fillna("Unknown").astype(str)
+                uniq = teams.unique().tolist()
+                team_to_code = {t: i for i, t in enumerate(uniq)}
+                pcs["Team_code"] = teams.map(team_to_code)
+                # build color scale matching team order
+                color_list = [team_color(t) for t in uniq]
+                # parallel_coordinates expects numeric columns only; include Team_code so we can colour by it
+                plot_df = pcs[["Points So Far","Expected (Remaining)","Total Expected","Team_code"]].copy()
+                fig_p = px.parallel_coordinates(
+                    plot_df,
+                    color="Team_code",
+                    color_continuous_scale=color_list,
+                    labels={"Points So Far":"Points So Far","Expected (Remaining)":"Expected (Remaining)","Total Expected":"Total Expected","Team_code":"Team"},
+                    title="Parallel coordinates — top drivers (multi-dim comparison)"
+                )
+                st.plotly_chart(fig_p, use_container_width=True)
+        except Exception:
+            pass
 
     # Table (include Team for clarity)
     st.dataframe(
