@@ -309,3 +309,113 @@ def homeTab():
     
     st.divider()
     st.caption(f"📊 Data spans from {min_year} to {max_year} | Total of {len(df):,} race results")
+
+    # =====================
+    # 📚 Story-driven Deep Dives (Overall)
+    # =====================
+    st.markdown("### 📚 Story-driven Deep Dives")
+
+    dd1, dd2 = st.tabs([
+        "Competitive Landscape",
+        "Pace vs Reliability",
+    ])
+
+    # --- Competitive Landscape ---
+    with dd1:
+        st.caption("Who dominated when? Explore team points share and competitive balance (Gini).")
+
+        # Team points share heatmap (year x team, % of total points)
+        team_year = (
+            df_filtered.groupby(['year', 'name'], as_index=False)['points'].sum()
+            .rename(columns={'name': 'team'})
+        )
+        if team_year.empty:
+            st.info("No team/points data in selection.")
+        else:
+            tot_per_year = team_year.groupby('year')['points'].transform('sum')
+            team_year['share'] = (team_year['points'] / tot_per_year) * 100
+            pivot = team_year.pivot(index='year', columns='team', values='share').fillna(0)
+            # order teams by latest year's share
+            last_year = pivot.index.max()
+            if pd.notna(last_year):
+                order = pivot.loc[last_year].sort_values(ascending=False).index
+                pivot = pivot[order]
+            fig_share = px.imshow(
+                pivot,
+                labels=dict(x="Team", y="Year", color="Points Share (%)"),
+                color_continuous_scale='Turbo'
+            )
+            fig_share.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
+            st.plotly_chart(fig_share, use_container_width=True)
+
+        st.markdown("#### Competitive Balance (Gini by Season)")
+        # Compute Gini coefficient of team points distribution per season
+        def gini(arr):
+            x = pd.to_numeric(pd.Series(arr), errors='coerce').fillna(0).values
+            if x.size == 0:
+                return None
+            x = np.sort(x)
+            n = x.size
+            if n == 0:
+                return None
+            cumx = np.cumsum(x)
+            if x.sum() == 0:
+                return 0.0
+            g = (n + 1 - 2 * (cumx.sum() / cumx[-1])) / n
+            return float(g)
+
+        import numpy as np
+        gini_rows = []
+        for y, grp in df_filtered.groupby('year'):
+            pts = grp.groupby('name')['points'].sum().values
+            val = gini(pts)
+            if val is not None:
+                gini_rows.append({'year': y, 'gini': val})
+        if gini_rows:
+            gdf = pd.DataFrame(gini_rows).sort_values('year')
+            fig_g = px.line(gdf, x='year', y='gini', markers=True, labels={'gini': 'Gini (0=Parity, 1=Dominance)'})
+            fig_g.update_layout(height=400, yaxis=dict(range=[0, 1]))
+            st.plotly_chart(fig_g, use_container_width=True)
+            st.caption("Lower Gini indicates a more competitive field; higher indicates dominance concentrated in fewer teams.")
+        else:
+            st.info("Not enough data to compute Gini.")
+
+    # --- Pace vs Reliability ---
+    with dd2:
+        st.caption("Do the fastest teams also finish reliably? Size=points, X=Avg Fastest Lap Speed, Y=DNF rate.")
+
+        work = df_filtered.copy()
+        work['fastestLapSpeed'] = pd.to_numeric(work['fastestLapSpeed'], errors='coerce')
+        # Define DNF as statusId != 1 if available, else missing time_results and positionOrder>0
+        if 'statusId' in work.columns:
+            work['dnf'] = (work['statusId'] != 1).astype(int)
+        else:
+            work['dnf'] = (work['time_results'].isna()).astype(int)
+
+        team_year_metrics = work.groupby(['year', 'name'], as_index=False).agg(
+            avg_speed=('fastestLapSpeed', 'mean'),
+            dnf_rate=('dnf', 'mean'),
+            points=('points', 'sum')
+        ).rename(columns={'name': 'team'})
+
+        highlight_year = st.slider(
+            "Focus Year (bubble colors by team; slider filters year)",
+            min_value=int(team_year_metrics['year'].min()),
+            max_value=int(team_year_metrics['year'].max()),
+            value=int(team_year_metrics['year'].max()),
+        ) if not team_year_metrics.empty else None
+
+        if team_year_metrics.empty or highlight_year is None:
+            st.info("Not enough data to compute pace vs reliability.")
+        else:
+            yr_df = team_year_metrics[team_year_metrics['year'] == highlight_year].dropna(subset=['avg_speed', 'dnf_rate'])
+            if yr_df.empty:
+                st.info("No data for the selected year.")
+            else:
+                fig_bub = px.scatter(
+                    yr_df,
+                    x='avg_speed', y='dnf_rate', size='points', color='team', hover_name='team',
+                    labels={'avg_speed': 'Avg Fastest Lap (km/h)', 'dnf_rate': 'DNF Rate'},
+                )
+                fig_bub.update_layout(height=520, legend=dict(orientation='h', yanchor='bottom', y=-0.25))
+                st.plotly_chart(fig_bub, use_container_width=True)

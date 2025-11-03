@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils.loadDatasets import load_merged_dataset
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ============================================================
 # Load dataset once and cache
@@ -127,4 +128,104 @@ def driverStatsTab():
         title=f"{selected_driver_name} – Wins & Podiums Per Season"
     )
     st.plotly_chart(fig_wins, use_container_width=True)
+
+    # =====================
+    # 📚 Story-driven Deep Dives (Driver)
+    # =====================
+    st.markdown("### 📚 Story-driven Deep Dives")
+    dd1, dd2, dd3 = st.tabs([
+        "Circuit Sweet Spots",
+        "Race Craft",
+        "Teammate Duel",
+    ])
+
+    # --- Circuit Sweet Spots ---
+    with dd1:
+        st.caption("Where does this driver thrive? Points by circuit across career.")
+        circuit_col = 'name_circuits' if 'name_circuits' in df_driver.columns else ('circuitRef' if 'circuitRef' in df_driver.columns else 'location')
+        drv_circ = df_driver.groupby([circuit_col, 'year'], as_index=False)['points'].sum()
+        if drv_circ.empty:
+            st.info("No circuit data available for this driver.")
+        else:
+            pivot = drv_circ.pivot(index=circuit_col, columns='year', values='points').fillna(0)
+            # sort circuits by total points
+            pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
+            fig_hm = px.imshow(
+                pivot,
+                labels=dict(x="Year", y="Circuit", color="Points"),
+                color_continuous_scale='Magma'
+            )
+            fig_hm.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
+            st.plotly_chart(fig_hm, use_container_width=True)
+
+    # --- Race Craft ---
+    with dd2:
+        st.caption("How starting position translates to finishing bucket for this driver.")
+        # bucketize
+        dfc = df_driver.copy()
+        dfc['grid'] = pd.to_numeric(dfc.get('grid'), errors='coerce')
+        dfc['positionOrder'] = pd.to_numeric(dfc['positionOrder'], errors='coerce')
+        dfc = dfc.dropna(subset=['grid', 'positionOrder'])
+        def g_bucket(g):
+            if g == 1:
+                return 'P1'
+            if 2 <= g <= 5:
+                return 'P2-5'
+            if 6 <= g <= 10:
+                return 'P6-10'
+            return 'P11+'
+        def f_bucket(p):
+            if p == 1:
+                return 'Win'
+            if 2 <= p <= 3:
+                return 'Podium'
+            if 4 <= p <= 10:
+                return 'Points'
+            return 'P11+'
+        dfc['gb'] = dfc['grid'].apply(g_bucket)
+        dfc['fb'] = dfc['positionOrder'].apply(f_bucket)
+        flow = dfc.groupby(['gb', 'fb'], as_index=False).size().rename(columns={'size': 'count'})
+        labels = sorted(dfc['gb'].unique().tolist()) + sorted(dfc['fb'].unique().tolist())
+        idx = {l:i for i,l in enumerate(labels)}
+        src, tgt, val = [], [], []
+        for _, r in flow.iterrows():
+            src.append(idx[r['gb']])
+            tgt.append(idx[r['fb']])
+            val.append(int(r['count']))
+        sankey = go.Figure(data=[go.Sankey(
+            node=dict(label=labels, pad=15, thickness=15),
+            link=dict(source=src, target=tgt, value=val)
+        )])
+        sankey.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
+        st.plotly_chart(sankey, use_container_width=True)
+
+    # --- Teammate Duel ---
+    with dd3:
+        st.caption("Season-by-season points edge vs teammates (same constructor).")
+        d = df_overall.copy()
+        d['Driver'] = (d['forename'].fillna('') + ' ' + d['surname'].fillna('')).str.strip()
+        # per season, constructor, driver points
+        per = d.groupby(['year', 'name', 'Driver'], as_index=False)['points'].sum()
+        # for selected driver
+        my = per[per['Driver'] == selected_driver_name]
+        if my.empty:
+            st.info("No season points available.")
+        else:
+            # teammate avg points per same year & team (exclude driver)
+            tm = per.merge(my[['year','name']].drop_duplicates(), on=['year','name'], how='inner')
+            def teammate_avg(g):
+                dr = selected_driver_name
+                vals = g.loc[g['Driver'] != dr, 'points']
+                return vals.mean() if not vals.empty else None
+            tavg = tm.groupby(['year','name'], as_index=False).apply(lambda g: pd.Series({'tm_avg': teammate_avg(g)}))
+            me = my.groupby(['year','name'], as_index=False)['points'].sum().rename(columns={'points':'me_pts'})
+            combined = me.merge(tavg, on=['year','name'], how='left')
+            combined['diff'] = combined['me_pts'] - combined['tm_avg']
+            # choose representative team if multiple (e.g., mid-season switch): sum by year
+            year_sum = combined.groupby('year', as_index=False).agg({'diff':'sum','me_pts':'sum','tm_avg':'mean'})
+            year_sum = year_sum.sort_values('year')
+            fig_duel = px.bar(year_sum, x='year', y='diff', labels={'diff': 'Points vs Teammate (Δ)'})
+            fig_duel.add_hline(y=0, line_dash='dash', line_color='#888')
+            fig_duel.update_layout(height=420, margin=dict(t=30, b=10, l=10, r=10))
+            st.plotly_chart(fig_duel, use_container_width=True)
 

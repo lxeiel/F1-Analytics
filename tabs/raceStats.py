@@ -5,6 +5,7 @@ from matplotlib.collections import LineCollection
 import numpy as np
 import os
 import pandas as pd
+import plotly.express as px
 from utils.loadDatasets import load_merged_dataset
 
 # ============================================================
@@ -35,16 +36,20 @@ def load_driver_telemetry(year: int, location: str, driver_code: str):
     fastest_lap = driver_laps.pick_fastest()
     tel = fastest_lap.get_telemetry()
 
-    return pd.DataFrame({
-        "X": tel["X"],
-        "Y": tel["Y"],
-        "Speed": tel["Speed"],
-        "Throttle": tel["Throttle"],
-        "Brake": tel["Brake"],
-        "RPM": tel["RPM"],
-        "nGear": tel["nGear"],
-        "DRS": tel["DRS"]
-    })
+    out = {
+        "X": tel.get("X"),
+        "Y": tel.get("Y"),
+        "Speed": tel.get("Speed"),
+        "Throttle": tel.get("Throttle"),
+        "Brake": tel.get("Brake"),
+        "RPM": tel.get("RPM"),
+        "nGear": tel.get("nGear"),
+        "DRS": tel.get("DRS"),
+    }
+    # include Distance if available
+    if "Distance" in tel.columns:
+        out["Distance"] = tel["Distance"]
+    return pd.DataFrame(out)
 
 
 def plot_telemetry_heatmap(selected_year, selected_location, driver_code='VER', metric='Speed'):
@@ -433,3 +438,77 @@ def raceStatsTab():
         full_results.columns = ['Position', 'Driver', 'Team', 'Points', 
                                 'Time', 'Fastest Lap', 'Top Speed (km/h)']
         st.dataframe(full_results, width='stretch', hide_index=True)
+
+    st.divider()
+    # =====================
+    # 📚 Story-driven Deep Dives (Race)
+    # =====================
+    st.markdown("### 📚 Story-driven Deep Dives")
+    rd1, rd2 = st.tabs([
+        "Telemetry Duel",
+        "Mini-Sectors Pace",
+    ])
+
+    # --- Telemetry Duel ---
+    with rd1:
+        st.caption("Compare fastest-lap speed traces between two drivers.")
+        top10 = df_race.head(10)
+        opt = top10.apply(lambda r: f"{r['Driver']} ({r['code']})", axis=1).tolist()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            pick_a = st.selectbox("Driver A", opt, index=0, key="tel_duel_a")
+        with col_b:
+            pick_b = st.selectbox("Driver B", opt, index=1 if len(opt) > 1 else 0, key="tel_duel_b")
+        code_a = pick_a.split('(')[-1].split(')')[0]
+        code_b = pick_b.split('(')[-1].split(')')[0]
+        try:
+            ta = load_driver_telemetry(selected_year, selected_location, code_a)
+            tb = load_driver_telemetry(selected_year, selected_location, code_b)
+            # Use Distance if available, else fallback to sample index
+            xa = ta['Distance'] if 'Distance' in ta.columns else ta.index
+            xb = tb['Distance'] if 'Distance' in tb.columns else tb.index
+            df_a = pd.DataFrame({'x': xa, 'speed': ta['Speed'], 'Driver': pick_a})
+            df_b = pd.DataFrame({'x': xb, 'speed': tb['Speed'], 'Driver': pick_b})
+            line = px.line(pd.concat([df_a, df_b], ignore_index=True), x='x', y='speed', color='Driver', labels={'x': 'Distance (m)', 'speed': 'Speed (km/h)'})
+            line.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
+            st.plotly_chart(line, use_container_width=True)
+        except Exception as e:
+            st.warning("Telemetry comparison unavailable.")
+            with st.expander("Details"):
+                st.exception(e)
+
+    # --- Mini-Sectors Pace ---
+    with rd2:
+        st.caption("Who’s quicker where? Average speed in equal-distance mini-sectors for selected drivers.")
+        try:
+            # choose two by default
+            dsel = st.multiselect("Drivers", opt, default=opt[:2])
+            traces = []
+            for p in dsel:
+                code = p.split('(')[-1].split(')')[0]
+                t = load_driver_telemetry(selected_year, selected_location, code)
+                if t is None or t.empty:
+                    continue
+                if 'Distance' not in t.columns:
+                    # synthesize normalized distance
+                    t = t.reset_index().rename(columns={'index':'Distance'})
+                # build 3 segments
+                dmin, dmax = float(t['Distance'].min()), float(t['Distance'].max())
+                edges = [dmin, dmin + (dmax-dmin)/3, dmin + 2*(dmax-dmin)/3, dmax]
+                segs = []
+                for i in range(3):
+                    seg = t[(t['Distance'] >= edges[i]) & (t['Distance'] <= edges[i+1])]
+                    segs.append(seg['Speed'].mean())
+                traces.append({'Driver': p, 'S1': segs[0], 'S2': segs[1], 'S3': segs[2]})
+            if not traces:
+                st.info("No telemetry available to compute mini-sectors.")
+            else:
+                dfm = pd.DataFrame(traces)
+                melted = dfm.melt(id_vars='Driver', var_name='Mini-Sector', value_name='Avg Speed')
+                fig_ms = px.bar(melted, x='Mini-Sector', y='Avg Speed', color='Driver', barmode='group')
+                fig_ms.update_layout(height=420, margin=dict(t=30, b=10, l=10, r=10))
+                st.plotly_chart(fig_ms, use_container_width=True)
+        except Exception as e:
+            st.warning("Unable to compute mini-sectors.")
+            with st.expander("Details"):
+                st.exception(e)
