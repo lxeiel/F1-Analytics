@@ -2,4 +2,7 @@ streamlit
 fastf1
 matplotlib
 seaborn
-plotly-express
+plotly>=5.12.0
+pandas>=1.5
+numpy>=1.24
+streamlit-plotly-events>=0.0.6
