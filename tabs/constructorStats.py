@@ -178,6 +178,7 @@ def constructorStatsTab():
         value=(max(y_min, y_max - 5), y_max),
         help="Adjust to focus on specific seasons",
         label_visibility="collapsed",
+        key="constructor_year_range",
     )
     st.caption(f"Showing data from {year_range[0]} to {year_range[1]}")
 
@@ -339,7 +340,7 @@ def constructorStatsTab():
             with hdr_col:
                 st.markdown("### 📊 Race Finish Distribution")
             with toggle_col:
-                as_percent = st.toggle("Show as % of team finishes", value=False, help="Normalize counts per team")
+                as_percent = st.checkbox("Show as % of team finishes", value=False, help="Normalize counts per team")
             dist = finish_distribution(df_sel[df_sel['name'].isin(selected_teams)], as_percent=as_percent)
             if as_percent:
                 fig_dist = px.bar(
@@ -463,7 +464,7 @@ def constructorStatsTab():
 
                 total_circuits = len(plot_df)
                 default_topn = 15 if total_circuits >= 15 else total_circuits
-                topn = st.slider("Top N circuits by absolute diff", min_value=5 if total_circuits >= 5 else total_circuits, max_value=total_circuits, value=default_topn, key="h2h_div_topn") if total_circuits > 0 else 0
+                topn = st.slider("Top N circuits by absolute diff", min_value=5 if total_circuits >= 5 else total_circuits, max_value=total_circuits, value=default_topn, key="h2h_div_topn_constructor") if total_circuits > 0 else 0
 
                 if total_circuits == 0:
                     st.info("No circuit aggregation available.")

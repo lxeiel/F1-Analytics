@@ -28,7 +28,8 @@ def homeTab():
         max_value=max_year,
         value=(max_year - 5, max_year),
         help="Adjust to focus on specific seasons",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="overall_year_range",
     )
     
     st.caption(f"Showing data from **{year_range[0]}** to **{year_range[1]}**")
@@ -408,6 +409,7 @@ def homeTab():
             min_value=int(team_year_metrics['year'].min()),
             max_value=int(team_year_metrics['year'].max()),
             value=int(team_year_metrics['year'].max()),
+            key="overall_highlight_year",
         ) if not team_year_metrics.empty else None
 
         if team_year_metrics.empty or highlight_year is None:
