@@ -1,7 +1,5 @@
-streamlit
 fastf1
 matplotlib
-seaborn
 pandas>=1.5
 numpy>=1.24
 streamlit-plotly-events>=0.0.6
