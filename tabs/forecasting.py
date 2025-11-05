@@ -929,10 +929,13 @@ def forecastingTab():
                 for i, row in merged_r.iterrows():
                     exp_points[row["Driver"]] += pts * probs[i]
 
+    # Round expected remaining points to whole numbers (user preference)
+    rounded_exp = {drv: int(round(v)) for drv, v in exp_points.items()}
+
     # Combine with already scored
     wdc = pd.DataFrame({
-        "Driver": list(exp_points.keys()),
-        "Expected Points (remaining)": list(exp_points.values())
+        "Driver": list(rounded_exp.keys()),
+        "Expected Points (remaining)": list(rounded_exp.values())
     })
     wdc = wdc.merge(earned, on="Driver", how="left").fillna({"points_so_far":0.0})
     wdc["Total Expected (2025)"] = wdc["points_so_far"] + wdc["Expected Points (remaining)"]

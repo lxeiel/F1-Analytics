@@ -32,6 +32,7 @@ streamlit run app.py
 - Home: Key statistics and trends across seasons.
 - Races: Pick a year and circuit, view race results and telemetry heatmaps.
 - Drivers: (WIP) Driver-specific analytics.
+- Driver Comparison: Head to head comparisons to compare 2 drivers against each other
 - Constructors: Team analytics with:
 	- Points by Season
 	- Wins and Podiums
@@ -39,3 +40,4 @@ streamlit run app.py
 	- Standings Rank by Season
 	- Race Finish Distribution (toggle counts/% per team)
 	- Year-over-Year Points Change and head-to-head comparison
+- Forecasting: Season predictions for the 2025 season
