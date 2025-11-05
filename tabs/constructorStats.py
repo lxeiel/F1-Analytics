@@ -642,22 +642,35 @@ def constructorStatsTab():
                         opacity=0.6, color_discrete_map=team_colors
                     )
                     sc.update_yaxes(autorange='reversed', dtick=1)
+                    
+                    import numpy as np
+                    # Add regression lines for each team
                     for tm in gvf['team'].unique():
                         sub = gvf[gvf['team'] == tm]
                         if len(sub) >= 2:
                             x = pd.to_numeric(sub['grid'], errors='coerce')
                             y = pd.to_numeric(sub['positionOrder'], errors='coerce')
-                            x = x.dropna(); y = y.loc[x.index]
-                            if len(x) >= 2:
-                                import numpy as np
-                                m, c = np.polyfit(x, y, 1)
-                                xr = np.array([x.min(), x.max()])
-                                yr = m * xr + c
-                                sc.add_trace(go.Scatter(
-                                    x=xr, y=yr, mode='lines', name=f"{tm} fit",
-                                    line=dict(color=team_colors.get(tm), width=2),
-                                    showlegend=False
-                                ))
+                            # Drop NaN and get matching indices
+                            valid_mask = x.notna() & y.notna()
+                            x = x[valid_mask]
+                            y = y[valid_mask]
+                            
+                            # Need at least 2 valid points and variance in x
+                            if len(x) >= 2 and x.std() > 0:
+                                try:
+                                    # Use polyfit with error handling
+                                    m, c = np.polyfit(x, y, 1)
+                                    xr = np.array([x.min(), x.max()])
+                                    yr = m * xr + c
+                                    sc.add_trace(go.Scatter(
+                                        x=xr, y=yr, mode='lines', name=f"{tm} fit",
+                                        line=dict(color=team_colors.get(tm), width=2),
+                                        showlegend=False
+                                    ))
+                                except (np.linalg.LinAlgError, ValueError):
+                                    # Skip regression line if numerical issues occur
+                                    continue
+                    
                     sc.update_layout(height=560, margin=dict(t=30, b=10, l=10, r=10))
                     st.plotly_chart(sc, use_container_width=True)
 
