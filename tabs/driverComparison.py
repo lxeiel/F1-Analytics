@@ -161,6 +161,11 @@ def driverComparisonTab():
 
     df_sel = df_range[df_range['Driver'].isin(selected_drivers)].copy()
 
+    # --- Merge status locally ---
+    status = pd.read_csv('Dataset/status.csv')
+    if 'status' not in df_sel.columns:
+        df_sel = df_sel.merge(status[['statusId', 'status']], on='statusId', how='left')
+
     # In-tab navigation
     sub_overview, sub_h2h, sub_adv = st.tabs(["Overview", "Head-to-Head", "Advanced"])
 
@@ -469,3 +474,83 @@ def driverComparisonTab():
                     parcats.update_layout(height=520, margin=dict(t=10, b=10, l=10, r=10))
                     st.plotly_chart(parcats, use_container_width=True)
 
+        # ============================================================
+    
+    # =====================
+    # NEW: Avg Points vs Reliability (Finished Probability vs Avg Points)
+    # =====================
+    with sub_overview:
+        st.markdown("### ⚡ Skill vs Reliability: Avg Points vs Finish Probability")
+
+        if df_sel.empty or not selected_drivers:
+            st.info("No data available for the selected drivers.")
+        else:
+            # Compute finished_binary
+            df_sel['finished_binary'] = df_sel['status'].apply(
+                lambda s: 1 if str(s) == "Finished" or str(s).startswith("+") else 0
+            )
+
+            # Aggregate per driver
+            driver_stats = (
+                df_sel.groupby('Driver', as_index=False)
+                .agg(
+                    avg_points=('points', 'mean'),
+                    finish_prob=('finished_binary', 'mean')
+                )
+            )
+
+            # Compute median points for skill threshold
+            median_points = driver_stats['avg_points'].median()
+
+            # Quadrant assignment using your new logic
+            driver_stats['Quadrant'] = driver_stats.apply(
+                lambda row: ('High Skill' if row['avg_points'] > median_points else 'Low Skill') +
+                            ' / ' +
+                            ('High Reliability' if row['finish_prob'] > 0.9 else 'Low Reliability'),
+                axis=1
+            )
+
+            # Scatterplot
+            fig_scatter = px.scatter(
+                driver_stats,
+                x='finish_prob',
+                y='avg_points',
+                color='Quadrant',
+                text='Driver',
+                labels={'finish_prob': 'Finish Probability', 'avg_points': 'Average Points'},
+                color_discrete_map={
+                    'High Skill / High Reliability': '#2ca02c',
+                    'High Skill / Low Reliability': '#ff7f0e',
+                    'Low Skill / High Reliability': '#1f77b4',
+                    'Low Skill / Low Reliability': '#d62728'
+                },
+                size_max=18
+            )
+
+            fig_scatter.update_traces(
+                textposition='top center',
+                marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey'))
+            )
+
+            # Add median line for skill (y-axis)
+            fig_scatter.add_hline(y=median_points, line_dash='dash', line_color='white')
+
+            # Optional: x-axis line for reliability at 0.9
+            fig_scatter.add_vline(x=0.9, line_dash='dash', line_color='white')
+
+            # Fix x-axis from 0 to 1
+            fig_scatter.update_xaxes(range=[0, 1])
+
+            fig_scatter.update_layout(
+                height=500,
+                margin=dict(t=40, b=40),
+                title="Driver Skill vs Reliability"
+            )
+
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.caption(
+                "Quadrants: Top-right = High Skill & High Reliability; "
+                "Top-left = High Skill & Low Reliability; "
+                "Bottom-right = Low Skill & High Reliability; "
+                "Bottom-left = Low Skill & Low Reliability."
+            )

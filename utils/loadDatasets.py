@@ -11,6 +11,9 @@ def load_merged_dataset():
     pit_stops = pd.read_csv('Dataset/pit_stops.csv')
     driver_standings = pd.read_csv('Dataset/driver_standings.csv')
     circuits = pd.read_csv('Dataset/circuits.csv')
+    status = pd.read_csv('Dataset/status.csv')
+
+    results = results.merge(status[['statusId', 'status']], on='statusId', how='left')
 
     df_race_circuits_all = pd.merge(races, circuits, on='circuitId', how='left', suffixes=['_race', '_circuits'])
     df_race_circuits_results = pd.merge(results, df_race_circuits_all, on='raceId', how='left', suffixes=['_results', '_raceCircuit'])
