@@ -430,3 +430,113 @@ def homeTab():
                 )
                 fig_bub.update_layout(height=520, legend=dict(orientation='h', yanchor='bottom', y=-0.25))
                 st.plotly_chart(fig_bub, use_container_width=True)
+
+    st.divider()
+
+    # === TOP 15 DRIVERS: CAREER STARTS vs PODIUM % ===
+    st.markdown("### 🏆 Top 15 Drivers in F1 History — Longevity vs. Success Rate")
+    st.caption("Career race starts vs. % podium finishes. Point size = number of championships won. Shows drivers who balanced long careers with high success.")
+    
+    # Use full dataset (ignore year filter for all-time stats)
+    df_alltime = load_data()
+    
+    # Aggregate driver career statistics
+    driver_stats = df_alltime.groupby(['driverId', 'forename', 'surname']).agg(
+        race_starts=('raceId', 'nunique'),
+        podiums=('positionOrder', lambda x: (x <= 3).sum()),
+        wins=('positionOrder', lambda x: (x == 1).sum())
+    ).reset_index()
+    
+    driver_stats['Driver'] = driver_stats['forename'] + ' ' + driver_stats['surname']
+    driver_stats['podium_pct'] = (driver_stats['podiums'] / driver_stats['race_starts'] * 100).round(1)
+    
+    # Count championships (driver won a championship if they had the most points in a year)
+    # Get championship winners by finding driver with max points each year
+    yearly_points = df_alltime.groupby(['year', 'driverId']).agg(
+        points=('points', 'sum')
+    ).reset_index()
+    
+    # Find winner per year (driver with max points)
+    champions = yearly_points.loc[yearly_points.groupby('year')['points'].idxmax()]
+    championship_counts = champions.groupby('driverId').size().reset_index(name='championships')
+    
+    # Merge championship counts
+    driver_stats = driver_stats.merge(championship_counts, on='driverId', how='left')
+    driver_stats['championships'] = driver_stats['championships'].fillna(0).astype(int)
+    
+    # Determine era based on first race year
+    first_race_year = df_alltime.groupby('driverId')['year'].min().reset_index()
+    first_race_year.columns = ['driverId', 'debut_year']
+    driver_stats = driver_stats.merge(first_race_year, on='driverId', how='left')
+    
+    # Define eras
+    def get_era(year):
+        if year < 1961:
+            return "Pre-1961 (Early Era)"
+        elif year < 1980:
+            return "1961-1979 (Classic Era)"
+        elif year < 2000:
+            return "1980-1999 (Turbo/Modern Era)"
+        elif year < 2014:
+            return "2000-2013 (Modern Era)"
+        else:
+            return "2014+ (Hybrid Era)"
+    
+    driver_stats['Era'] = driver_stats['debut_year'].apply(get_era)
+    
+    # Filter to drivers with at least 50 race starts to avoid one-hit wonders
+    # Then get top 20 by podium percentage (success rate)
+    qualified_drivers = driver_stats[driver_stats['race_starts'] >= 50].copy()
+    top_drivers = qualified_drivers.nlargest(20, 'podium_pct').copy()
+    
+    # Create scatter plot
+    fig_career = px.scatter(
+        top_drivers,
+        x='race_starts',
+        y='podium_pct',
+        size='championships',
+        color='Driver',
+        hover_name='Driver',
+        hover_data={
+            'race_starts': ':,',
+            'podium_pct': ':.1f',
+            'podiums': ':,',
+            'wins': ':,',
+            'championships': True,
+            'Era': True
+        },
+        labels={
+            'race_starts': 'Career Race Starts',
+            'podium_pct': 'Podium Finish Rate (%)',
+            'championships': 'Championships'
+        },
+        title='Top 20 Drivers by Podium Rate: Career Longevity vs. Success Rate',
+        size_max=30,
+        color_discrete_sequence=px.colors.qualitative.Light24
+    )
+    
+    fig_career.update_layout(
+        height=600,
+        xaxis_title='Career Race Starts',
+        yaxis_title='Podium Finish Rate (%)',
+        legend=dict(
+            orientation='v',
+            yanchor='top',
+            y=0.98,
+            xanchor='right',
+            x=0.98
+        )
+    )
+    
+    st.plotly_chart(fig_career, use_container_width=True)
+    
+    # Show data table
+    with st.expander("📊 View Top 20 Drivers Data"):
+        display_cols = ['Driver', 'race_starts', 'podiums', 'podium_pct', 'wins', 'championships', 'Era', 'debut_year']
+        display_df = top_drivers[display_cols].copy()
+        display_df.columns = ['Driver', 'Race Starts', 'Podiums', 'Podium %', 'Wins', 'Championships', 'Era', 'Debut Year']
+        st.dataframe(
+            display_df.sort_values('Race Starts', ascending=False),
+            use_container_width=True,
+            hide_index=True
+        )
