@@ -968,6 +968,11 @@ def forecastingTab():
     wdc = wdc.merge(primary_team, on='Driver', how='left')
     wdc['Team_base'] = wdc['Team'].apply(normalize_team)
 
+    # Safety: Clamp negative values to 0 BEFORE any visualizations (shouldn't happen in real F1 scoring)
+    wdc["Total Expected (2025)"] = wdc["Total Expected (2025)"].clip(lower=0)
+    wdc["Expected Points (remaining)"] = wdc["Expected Points (remaining)"].clip(lower=0)
+    wdc["points_so_far"] = wdc["points_so_far"].clip(lower=0)
+
     # Plot top-15 with team colours (plotly-express)
     top15 = wdc.head(15).copy()
     top15['Team_base'] = top15['Team'].apply(normalize_team)
@@ -1001,6 +1006,11 @@ def forecastingTab():
                 # map Team_base categories to exact team hex colours
                 uniq_teams = sorted(vdf["Team_base"].dropna().unique().tolist())
                 color_map = {t: team_color(t) for t in uniq_teams}
+                
+                # Calculate a reasonable y-axis minimum (slightly below min to see the lowest points)
+                y_min = max(0, vdf["Total Expected (2025)"].min() - 20)
+                y_max = vdf["Total Expected (2025)"].max() * 1.1
+                
                 fig_v = px.violin(
                     vdf,
                     x="Team_base",
@@ -1011,7 +1021,12 @@ def forecastingTab():
                     points="all",
                     title="Distribution of Total Expected (2025) by Team"
                 )
-                fig_v.update_layout(xaxis_title="Team", yaxis_title="Total Expected Points", showlegend=False)
+                fig_v.update_layout(
+                    xaxis_title="Team", 
+                    yaxis_title="Total Expected Points", 
+                    showlegend=False,
+                    yaxis=dict(range=[y_min, y_max])  # Constrain y-axis to visible data range
+                )
                 st.plotly_chart(fig_v, use_container_width=True)
 
             # Parallel coordinates for top-10 drivers to compare multi-dim signals
