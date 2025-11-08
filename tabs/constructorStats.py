@@ -6,6 +6,23 @@ from utils.loadDatasets import load_merged_dataset
 from utils.teamColors import get_team_color_map, hex_to_rgba, TEAM_COLORS
 
 
+def lighten_hex_color(hex_color: str, factor: float = 0.4) -> str:
+    """Lighten a HEX color by blending it towards white."""
+    if not hex_color:
+        return '#aaaaaa'
+    color = hex_color.lstrip('#')
+    try:
+        r = int(color[0:2], 16)
+        g = int(color[2:4], 16)
+        b = int(color[4:6], 16)
+    except ValueError:
+        return '#aaaaaa'
+    r = int(r + (255 - r) * factor)
+    g = int(g + (255 - g) * factor)
+    b = int(b + (255 - b) * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 # ============================================================
 #  DATA LOADING HELPERS
 # ============================================================
@@ -514,12 +531,53 @@ def constructorStatsTab():
                 if pts_sb.empty:
                     st.info("No points in the selected range.")
                 else:
-                    sun = px.sunburst(
-                        pts_sb, path=['team', 'year'], values='points', color='team',
-                        color_discrete_map=team_colors
-                    )
-                    sun.update_layout(height=520, margin=dict(t=10, b=10, l=10, r=10))
-                    st.plotly_chart(sun, use_container_width=True)
+                    # Sort by team and year to display years chronologically
+                    pts_sb = pts_sb.sort_values(['team', 'year']).copy()
+                    available_teams = pts_sb['team'].unique().tolist()
+                    team_order = [team for team in selected_teams if team in available_teams]
+                    if not team_order:
+                        team_order = available_teams
+
+                    labels = []
+                    parents = []
+                    ids = []
+                    values = []
+                    colors = []
+
+                    for team in team_order:
+                        team_points = pts_sb[pts_sb['team'] == team]
+                        if team_points.empty:
+                            continue
+                        team_total = float(team_points['points'].sum())
+                        labels.append(team)
+                        parents.append("")
+                        ids.append(team)
+                        values.append(team_total)
+                        colors.append(team_colors.get(team, '#888888'))
+
+                        for _, row in team_points.iterrows():
+                            year_label = str(int(row['year'])) if pd.notna(row['year']) else "Unknown"
+                            labels.append(year_label)
+                            parents.append(team)
+                            ids.append(f"{team}-{year_label}")
+                            values.append(float(row['points']))
+                            base_color = team_colors.get(team, '#888888')
+                            colors.append(lighten_hex_color(base_color, factor=0.55))
+
+                    if not labels:
+                        st.info("No points in the selected range.")
+                    else:
+                        sun = go.Figure(go.Sunburst(
+                            ids=ids,
+                            labels=labels,
+                            parents=parents,
+                            values=values,
+                            branchvalues="total",
+                            sort=False,
+                            marker=dict(colors=colors)
+                        ))
+                        sun.update_layout(height=520, margin=dict(t=10, b=10, l=10, r=10))
+                        st.plotly_chart(sun, use_container_width=True)
 
             with sb_tab2:
                 st.caption("Who scored for each team and when.")
