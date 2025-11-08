@@ -505,10 +505,10 @@ def constructorStatsTab():
                     st.plotly_chart(fig_div, use_container_width=True)
 
     # =====================
-    # � Story-driven Deep Dives
+    # 🎯 Story-driven Deep Dives
     # =====================
     with sub_adv:
-        st.markdown("### � Story-driven Deep Dives")
+        st.markdown("### 🎯 Story-driven Deep Dives")
         cat_score, cat_craft, cat_battle, cat_momentum, cat_identity = st.tabs([
             "Scoreboard",
             "Race Craft",
@@ -746,11 +746,20 @@ def constructorStatsTab():
                 st.info("No circuit data available in this selection.")
             else:
                 pivot = df_hm.pivot(index=circuit_col, columns='team', values='points').fillna(0)
+                # Ensure every selected team appears even if they scored zero here
+                if selected_teams:
+                    pivot = pivot.reindex(columns=selected_teams, fill_value=0)
                 pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
                 fig_hm = px.imshow(
                     pivot,
                     labels=dict(x="Team", y="Circuit", color="Points"),
                     color_continuous_scale='Inferno'
+                )
+                fig_hm.update_xaxes(
+                    tickmode='array',
+                    tickvals=pivot.columns.tolist(),
+                    ticktext=pivot.columns.tolist(),
+                    tickangle=45
                 )
                 fig_hm.update_layout(height=580, margin=dict(t=30, b=10, l=10, r=10))
                 st.plotly_chart(fig_hm, use_container_width=True)
