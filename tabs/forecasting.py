@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 
 import plotly.express as px
-# interactivity helper (removed): clicks are not used anymore
 
 from utils.loadDatasets import load_merged_dataset
 from utils.loadDatasets2025 import load_merged_dataset_2025

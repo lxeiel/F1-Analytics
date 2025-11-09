@@ -4,7 +4,6 @@ import streamlit as st
 
 SEASON = 2025
 
-# Exact file paths you provided
 RACE_PATH   = "Dataset/F1_2025_RaceResults.csv"
 QUALI_PATH  = "Dataset/F1_2025_QualifyingResults.csv"
 SPRINT_PATH = "Dataset/F1_2025_SprintResults.csv"
