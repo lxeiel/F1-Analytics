@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.loadDatasets import load_merged_dataset
+import numpy as np
 
 
 # ============================================================
@@ -143,6 +144,30 @@ def driverComparisonTab():
     st.caption(f"Showing data from {year_range[0]} to {year_range[1]}")
 
     df_range = df[(df['year'] >= year_range[0]) & (df['year'] <= year_range[1])].copy()
+
+    # ============================================================
+    # NEW: Circuit filter
+    # ============================================================
+    if 'name_circuits' in df_range.columns:
+        circuit_col = 'name_circuits'
+    elif 'circuitRef' in df_range.columns:
+        circuit_col = 'circuitRef'
+    else:
+        circuit_col = 'circuitId'
+
+    all_circuits = sorted(df_range[circuit_col].dropna().unique().tolist())
+    selected_circuit = st.selectbox(
+        "🏎️ Filter by Circuit",
+        options=["All Circuits"] + all_circuits,
+        index=0,
+        help="Select a specific circuit to filter all driver data"
+    )
+
+    if selected_circuit != "All Circuits":
+        df_range = df_range[df_range[circuit_col] == selected_circuit].copy()
+        st.caption(f"Showing results for **{selected_circuit}** only.")
+    else:
+        st.caption("Showing results across **all circuits**.")
 
     # Driver multiselect (default: top 8 by points in range)
     driver_points = df_range.groupby('Driver')['points'].sum().sort_values(ascending=False)
@@ -394,13 +419,20 @@ def driverComparisonTab():
 
                 total_circuits = len(plot_df)
                 default_topn = 15 if total_circuits >= 15 else total_circuits
-                topn = st.slider(
-                    "Top N circuits by absolute diff",
-                    min_value=5 if total_circuits >= 5 else total_circuits,
-                    max_value=total_circuits,
-                    value=default_topn,
-                    key="h2h_div_topn_drivercomp",
-                ) if total_circuits > 0 else 0
+                if total_circuits > 1:
+                    # Only show the slider if there’s more than 1 circuit
+                    topn = st.slider(
+                        "Top N circuits by absolute diff",
+                        min_value=5 if total_circuits >= 5 else total_circuits,
+                        max_value=total_circuits,
+                        value=default_topn,
+                        step=1,
+                        key="h2h_div_topn_drivercomp",
+                    )
+                else:
+                    # Only 1 circuit, slider would break, so just use it
+                    topn = 1
+                    st.info("Only one circuit available — showing all data for this circuit.")
 
                 if total_circuits == 0:
                     st.info("No circuit aggregation available.")
