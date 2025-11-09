@@ -750,16 +750,34 @@ def constructorStatsTab():
                 if selected_teams:
                     pivot = pivot.reindex(columns=selected_teams, fill_value=0)
                 pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
-                fig_hm = px.imshow(
-                    pivot,
-                    labels=dict(x="Team", y="Circuit", color="Points"),
-                    color_continuous_scale='Inferno'
+                x_labels = pivot.columns.tolist()
+                y_labels = pivot.index.tolist()
+                heat = go.Heatmap(
+                    z=pivot.values,
+                    x=x_labels,
+                    y=y_labels,
+                    colorscale='Inferno',
+                    colorbar=dict(title='Points'),
+                    hovertemplate="%{y} · %{x}<br>Points: %{z}<extra></extra>"
                 )
+                fig_hm = go.Figure(data=heat)
                 fig_hm.update_xaxes(
+                    type='category',
+                    categoryorder='array',
+                    categoryarray=x_labels,
                     tickmode='array',
-                    tickvals=pivot.columns.tolist(),
-                    ticktext=pivot.columns.tolist(),
+                    tickvals=x_labels,
+                    ticktext=x_labels,
                     tickangle=45
+                )
+                fig_hm.update_yaxes(
+                    type='category',
+                    categoryorder='array',
+                    categoryarray=y_labels,
+                    tickmode='array',
+                    tickvals=y_labels,
+                    ticktext=y_labels,
+                    automargin=True
                 )
                 fig_hm.update_layout(height=580, margin=dict(t=30, b=10, l=10, r=10))
                 st.plotly_chart(fig_hm, use_container_width=True)
