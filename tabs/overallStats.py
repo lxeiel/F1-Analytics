@@ -433,8 +433,8 @@ def homeTab():
 
     st.divider()
 
-    # === TOP 15 DRIVERS: CAREER STARTS vs PODIUM % ===
-    st.markdown("### 🏆 Top 15 Drivers in F1 History — Longevity vs. Success Rate")
+    # === TOP 20 DRIVERS: CAREER STARTS vs PODIUM % ===
+    st.markdown("### 🏆 Top 20 Drivers in F1 History — Longevity vs. Success Rate")
     st.caption("Career race starts vs. % podium finishes. Point size = number of championships won. Shows drivers who balanced long careers with high success.")
     
     # Use full dataset (ignore year filter for all-time stats)
