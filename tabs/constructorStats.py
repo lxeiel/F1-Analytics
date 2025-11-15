@@ -23,9 +23,9 @@ def lighten_hex_color(hex_color: str, factor: float = 0.4) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-# ============================================================
+
 #  DATA LOADING HELPERS
-# ============================================================
+
 
 @st.cache_data
 def get_overall_data() -> pd.DataFrame:
@@ -140,9 +140,8 @@ def yoy_points_change(df: pd.DataFrame) -> pd.DataFrame:
     return pts.dropna(subset=['points_prev'])
 
 
-# ============================================================
 #  ADVANCED CHART HELPERS
-# ============================================================
+
 
 @st.cache_data
 def grid_bucketize(series: pd.Series) -> pd.Series:
@@ -176,9 +175,9 @@ def prepare_parcats_counts(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-# ============================================================
+
 #  MAIN CONSTRUCTORS TAB
-# ============================================================
+
 def constructorStatsTab():
     st.header("🏢 Constructor Statistics")
 
@@ -186,7 +185,7 @@ def constructorStatsTab():
     df = get_overall_data()
     y_min, y_max = get_year_bounds(df)
 
-    # Sidebar-like top filters (kept in main to match other tabs)
+    # Sidebar-like top filters 
     st.markdown("#### 📅 Filter by Year Range")
     year_range = st.slider(
         "Select Years",
@@ -219,12 +218,11 @@ def constructorStatsTab():
     df_sel = df_range[df_range['name'].isin(selected_teams)].copy()
     team_colors = get_team_color_map(selected_teams)
 
-    # In-tab navigation (replace global sidebar)
+    # In-tab navigation 
     sub_overview, sub_h2h, sub_adv = st.tabs(["Overview", "Head-to-Head", "Advanced"])
 
-    # =====================
     # Key metrics row (Overview)
-    # =====================
+
     stats = summarize_constructor_stats(df_sel)
     with sub_overview:
         total_points = int(stats['total_points'].sum())
@@ -244,9 +242,9 @@ def constructorStatsTab():
 
         st.divider()
 
-    # =====================
+
     # Charts grid
-    # =====================
+
     with sub_overview:
         left, right = st.columns(2)
 
@@ -327,9 +325,9 @@ def constructorStatsTab():
 
         st.divider()
 
-    # =====================
+
     # NEW: Standings rank + Finish distribution
-    # =====================
+ 
     with sub_overview:
         r1, r2 = st.columns(2)
 
@@ -382,9 +380,9 @@ def constructorStatsTab():
 
         st.divider()
 
-    # =====================
+
     # NEW: Year-over-Year improvements
-    # =====================
+ 
     with sub_overview:
         st.markdown("### 📈 Year-over-Year Points Change")
         yoy = yoy_points_change(df_sel)
@@ -410,9 +408,9 @@ def constructorStatsTab():
 
         st.divider()
 
-    # =====================
-    # Head-to-head comparison (optional)
-    # =====================
+
+    # Head-to-head comparison 
+
     with sub_h2h:
         st.markdown("### ⚔️ Head-to-Head Comparison")
         if len(selected_teams) < 2:
@@ -455,7 +453,7 @@ def constructorStatsTab():
 
             st.divider()
 
-            # --- Diverging: Circuit Head-to-Head (moved from Advanced) ---
+            # Diverging: Circuit Head-to-Head (moved from Advanced) 
             st.caption("Per-circuit points difference between the two teams across the selected years.")
             # choose circuit label column
             circuit_col = 'name_circuits' if 'name_circuits' in df_range.columns else ('circuitRef' if 'circuitRef' in df_range.columns else 'circuitId')
@@ -504,9 +502,8 @@ def constructorStatsTab():
                     fig_div.update_layout(height=max(420, 100 + bar_h * len(to_show)), legend=dict(orientation='h', yanchor='bottom', y=-0.25))
                     st.plotly_chart(fig_div, use_container_width=True)
 
-    # =====================
-    # 🎯 Story-driven Deep Dives
-    # =====================
+
+    #  Story-driven Deep Dives
     with sub_adv:
         st.markdown("### 🎯 Story-driven Deep Dives")
         cat_score, cat_craft, cat_battle, cat_momentum, cat_identity = st.tabs([
@@ -517,7 +514,7 @@ def constructorStatsTab():
             "Identity",
         ])
 
-        # ========== Scoreboard: Where points come from ==========
+        # Scoreboard: Where points come from 
         with cat_score:
             sb_tab1, sb_tab2 = st.tabs([
                 "Sunburst: Points Origins",
@@ -597,7 +594,7 @@ def constructorStatsTab():
                     fig_tm.update_layout(height=600, margin=dict(t=20, b=10, l=10, r=10))
                     st.plotly_chart(fig_tm, use_container_width=True)
 
-        # ========== Race Craft: From grid to chequered ==========
+        #  Race Craft: From grid to chequered 
         with cat_craft:
             rc_tab1, rc_tab2, rc_tab3, rc_tab4 = st.tabs([
                 "Result Pathways (Sankey)",
@@ -732,7 +729,7 @@ def constructorStatsTab():
                     sc.update_layout(height=560, margin=dict(t=30, b=10, l=10, r=10))
                     st.plotly_chart(sc, use_container_width=True)
 
-        # ========== Battlefields: Circuits that matter ==========
+        # Battlefields: Circuits that matter 
         with cat_battle:
             st.caption("Which circuits reward which teams (sum of points across selected years).")
             circuit_col = 'name_circuits' if 'name_circuits' in df_sel.columns else ('circuitRef' if 'circuitRef' in df_sel.columns else 'circuitId')
@@ -782,7 +779,7 @@ def constructorStatsTab():
                 fig_hm.update_layout(height=580, margin=dict(t=30, b=10, l=10, r=10))
                 st.plotly_chart(fig_hm, use_container_width=True)
 
-        # ========== Momentum: Season dynamics ==========
+        # Momentum: Season dynamics 
         with cat_momentum:
             mo_tab1, mo_tab2 = st.tabs([
                 "Bar Race: Cumulative Points",

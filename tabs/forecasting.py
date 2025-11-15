@@ -10,9 +10,7 @@ import plotly.express as px
 from utils.loadDatasets import load_merged_dataset
 from utils.loadDatasets2025 import load_merged_dataset_2025
 
-# ============================================================
 #  CONSTANTS / UTILITIES
-# ============================================================
 
 # Team colours for 2025 (base team names ONLY)
 TEAM_COLORS = {
@@ -101,9 +99,9 @@ def get_2025_grid(rounds: int = 24) -> pd.DataFrame:
                 rows.append({"round": r, "Driver": e["Driver"], "Team": e["Team"]})
     return pd.DataFrame(rows)
 
-# ============================================================
+
 #  HISTORICAL (1950–2024) AGGREGATION
-# ============================================================
+
 
 @st.cache_data(show_spinner=False)
 def get_historical_df() -> pd.DataFrame:
@@ -226,7 +224,7 @@ def recency_momentum(
 
     return agg[["constructorId", "name", "momentum_score", "points_share"]]
 
-# ---------------- Driver aggregates (historical) ----------------
+# Driver aggregates (historical) 
 
 @st.cache_data(show_spinner=False)
 def driver_season_stats(df: pd.DataFrame) -> pd.DataFrame:
@@ -286,7 +284,7 @@ def driver_recent_form(stats: pd.DataFrame, end_year: int, window: int = 3, deca
 
 @st.cache_data(show_spinner=False)
 def circuit_driver_form(df: pd.DataFrame, end_year: int, window: int = 4, decay: float = 0.7) -> pd.DataFrame:
-    # defensive: some dumps don't have circuitId -> fallback to raceId
+
     sub = df.copy()
     if "circuitId" not in sub.columns:
         sub["circuitId"] = sub["raceId"]
@@ -308,7 +306,7 @@ def circuit_driver_form(df: pd.DataFrame, end_year: int, window: int = 4, decay:
 
     return merged[["Driver","circuitId","c_score"]]
 
-# ---------------- Small helper: map a 2025 track label to a circuitId (best-effort) -------------
+#  Small helper: map a 2025 track label to a circuitId 
 def map_track_to_circuit_id(track: str, df_hist: pd.DataFrame) -> Optional[int]:
     """Map a 2025 'Track' label (e.g., 'Australia', 'China') to a historical circuitId."""
     if not track:
@@ -329,9 +327,9 @@ def map_track_to_circuit_id(track: str, df_hist: pd.DataFrame) -> Optional[int]:
     except Exception:
         return None
 
-# ============================================================
+
 #  MAIN TAB
-# ============================================================
+
 def forecastingTab():
     st.header("📈 Forecasting — 2025 Season (uses 2025 results + historical)")
     # debug/sample visuals disabled in UI
@@ -348,9 +346,9 @@ def forecastingTab():
         st.error("No 2025 CSVs found. Add them to Dataset/ and reload.")
         return
 
-    # -----------------------------------------------------------------
+   
     # SECTION 1. Constructor Comeback Forecast
-    # -----------------------------------------------------------------
+    
     champs, titles_by_constructor = compute_constructor_champions(season_totals)
     counts_global = global_gap_counts(titles_by_constructor)
 
@@ -384,7 +382,7 @@ def forecastingTab():
         fig.update_layout(yaxis_tickformat=".0%")
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- Heatmap: gap counts per constructor (shows which teams had repeats at which gaps)
+    # Heatmap: gap counts per constructor (shows which teams had repeats at which gaps)
     if not global_pmf.empty or _debug_show_visuals:
         try:
             rows = []
@@ -431,7 +429,7 @@ def forecastingTab():
         max_share = cons_2025["share_2025"].max()
         cons_2025["momentum_2025"] = (cons_2025["share_2025"] / max_share).clip(0,1)
 
-    # map 2025 team names to historical constructorIds for comeback logic
+    # map 2025 team names to historical constructorIds for comeback
     alias_map = {
         "Alpine": ["Renault"],
         "Aston Martin": ["Racing Point", "Force India"],
@@ -524,12 +522,12 @@ def forecastingTab():
 
     st.divider()
 
-    # -----------------------------------------------------------------
+
     # SECTION 2. Race Winner Prediction (Dropdown)
-    # -----------------------------------------------------------------
+
     st.subheader("🏁 2025 Race Winner Prediction (Select a Round)")
 
-    # ---------- Build 2025 calendar (robust) ----------
+    # 2025 calendar
     # Coerce rounds to integers across ALL sessions we have
     df2025["round"] = pd.to_numeric(df2025["round"], errors="coerce").astype("Int64")
 
@@ -559,7 +557,7 @@ def forecastingTab():
         .reset_index(drop=True)
     )
 
-    # Build a full calendar frame [1..season_len]; fill names when we have them
+    # Build a full calendar frame 
     calendar_full = pd.DataFrame({"round": all_rounds}).merge(
         calendar_2025, on="round", how="left"
     )
@@ -672,7 +670,7 @@ def forecastingTab():
         c_sel = pd.DataFrame(columns=["Driver","c_score"])
 
     # Drivers actually eligible that round
-    # Drivers actually eligible that round
+
     grid = get_2025_grid(rounds=season_len)
     elig = grid[grid["round"] == selected_round][["Driver","Team"]].copy()
 
@@ -756,7 +754,7 @@ def forecastingTab():
 
     st.caption("Bars are tinted by each driver's 2025 team colour. Quali boost is applied only if that round has qualifying data.")
 
-    # --- Radar: component profile for Top-K drivers
+    #Radar: component profile for Top-K drivers
     if (not topk.empty) or _debug_show_visuals:
         try:
             radar_metrics = ["overall_hist", "form_2025", "c_score", "quali_boost", "team_mom_2025"]
@@ -811,9 +809,8 @@ def forecastingTab():
 
     st.divider()
 
-    # -----------------------------------------------------------------
     # SECTION 3. WDC Expected Points Projection (Rest of 2025)
-    # -----------------------------------------------------------------
+
     st.subheader("👑 2025 WDC — Expected Points (Actual so far + Forecast for remaining)")
 
     # Points already scored in 2025 (Race + Sprint)
@@ -839,7 +836,7 @@ def forecastingTab():
 
         elig_r = grid_all_rounds[grid_all_rounds["round"] == rnd][["Driver","Team"]].copy()
 
-        # circuit form for this round (optional)
+        # circuit form for this round 
         if cir is not None:
             cf = c_form_hist[c_form_hist["circuitId"] == cir][["Driver","c_score"]].copy()
             if not cf.empty and cf["c_score"].max() > 0:
@@ -884,7 +881,7 @@ def forecastingTab():
         ) / weight_sum_future
 
         # Expected points via a simple probabilistic ranking (Plackett-Luce style)
-        # We'll run a small Monte-Carlo to sample finishing orders proportionally to each
+        # Run a small Monte-Carlo to sample finishing orders proportionally to each
         # driver's score to produce more realistic position-point expectations.
         try:
             rng = np.random.default_rng(12345)
@@ -943,7 +940,7 @@ def forecastingTab():
     wdc = wdc[wdc["Driver"].isin(grid_all_rounds["Driver"].unique())]
     wdc = wdc.sort_values("Total Expected (2025)", ascending=False)
 
-    # ---- Team colouring for bars (robust to noisy team strings) ----
+    # Team colouring for bars (robust to noisy team strings)
     # Prefer the team a driver scored most 2025 points with; fallback = grid majority team
     drv_team_points = d2025_results.groupby(['Driver','Team'], as_index=False)['points'].sum()
     if not drv_team_points.empty:
@@ -987,9 +984,9 @@ def forecastingTab():
     )
     fig_wdc.update_layout(xaxis_title='Driver', yaxis_title='Expected Points', bargap=0.2, showlegend=False)
     st.plotly_chart(fig_wdc, use_container_width=True)
-    # non-interactive WDC chart
 
-    # --- Violin: distribution of Total Expected per Team + Parallel Coordinates for top drivers
+
+    # Violin: distribution of Total Expected per Team + Parallel Coordinates for top drivers
     if (not wdc.empty and 'Team_base' in wdc.columns) or _debug_show_visuals:
         try:
             vdf = wdc.copy()
@@ -1000,13 +997,13 @@ def forecastingTab():
                     'Team_base': ['Team X','Team X','Team Y','Team Y','Team Z'],
                     'Total Expected (2025)': np.random.uniform(10, 300, 5)
                 })
-            # (non-interactive) show violin distribution for available teams
+            # show violin distribution for available teams
             if not vdf.empty:
                 # map Team_base categories to exact team hex colours
                 uniq_teams = sorted(vdf["Team_base"].dropna().unique().tolist())
                 color_map = {t: team_color(t) for t in uniq_teams}
                 
-                # Calculate a reasonable y-axis minimum (slightly below min to see the lowest points)
+                # Calculate a reasonable y-axis minimum
                 y_min = max(0, vdf["Total Expected (2025)"].min() - 20)
                 y_max = vdf["Total Expected (2025)"].max() * 1.1
                 
@@ -1037,7 +1034,7 @@ def forecastingTab():
                     'Expected Points (remaining)': [30,40,20],
                     'Total Expected (2025)': [80,160,100]
                 })
-            # (non-interactive) show parallel coordinates for top drivers
+            #  show parallel coordinates for top drivers
             if not top_n.empty:
                 pcs = top_n[["Driver","Team","points_so_far","Expected Points (remaining)","Total Expected (2025)"]].copy()
                 pcs = pcs.rename(columns={"points_so_far":"Points So Far","Expected Points (remaining)":"Expected (Remaining)","Total Expected (2025)":"Total Expected","Team":"Team"})

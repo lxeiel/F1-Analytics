@@ -8,9 +8,9 @@ import pandas as pd
 import plotly.express as px
 from utils.loadDatasets import load_merged_dataset
 
-# ============================================================
+
 #  HELPER FUNCTIONS
-# ============================================================
+
 
 @st.cache_resource
 def create_fastf1_session(year, location):
@@ -102,7 +102,7 @@ def plot_telemetry_heatmap(selected_year, selected_location, driver_code='VER', 
         'Brake': {
             'cmap': 'Reds',
             'label': 'Brake Pressure',
-            'use_minmax': True  # Brake can be boolean or percentage
+            'use_minmax': True  
         },
         'RPM': {
             'cmap': 'inferno',
@@ -207,15 +207,13 @@ def driver_selection_component(df_top5: pd.DataFrame) -> str:
     return st.session_state.selected_driver
 
 
-# ============================================================
+
 #  MAIN RACE STATS TAB
-# ============================================================
 def format_time_delta(time_str, winner_time_str):
     """Calculate time delta from winner"""
     if pd.isna(time_str) or time_str == '' or time_str == winner_time_str:
         return ""
     try:
-        # Simple string comparison for display
         return f"+{time_str}"
     except:
         return ""
@@ -315,13 +313,13 @@ def raceStatsTab():
             axis=1
         )
         
-        # Display table with custom formatting
+        # Display table 
         display_df = df_race[['Pos', 'Driver', 'name', 'points', 'Gap', 
                                'fastestLapTime', 'fastestLapSpeed']].head(10)
         display_df.columns = ['Pos', 'Driver', 'Team', 'Points', 'Gap', 
                                'Fastest Lap', 'Top Speed (km/h)']
         
-        # Driver selector (place BEFORE styling to avoid lag)
+        # Driver selector 
         st.markdown("##### 🎯 Select Driver for Telemetry Analysis")
         driver_options = df_race.head(10).apply(
             lambda row: f"{row['Driver']} ({row['code']})", axis=1
@@ -350,9 +348,8 @@ def raceStatsTab():
         driver_code = selected_driver_display.split('(')[1].split(')')[0]
         st.session_state.selected_driver_code = driver_code
         
-        # Style the dataframe (now uses updated driver_code)
+        # Style the dataframe 
         def highlight_selected(row):
-            # Get driver code from the display name for comparison
             driver_name = row['Driver']
             row_driver_code = df_race[df_race['Driver'] == driver_name]['code'].values
             if len(row_driver_code) > 0 and row_driver_code[0] == st.session_state.selected_driver_code:
@@ -401,7 +398,7 @@ def raceStatsTab():
                 st.info(f"{metrics[selected_metric]['icon']} {metrics[selected_metric]['desc']}")
                 break
         
-        # Generate telemetry plot
+        # Telemetry plot
         with st.spinner(f"Loading {selected_metric} data..."):
             try:
                 fig = plot_telemetry_heatmap(
@@ -440,16 +437,15 @@ def raceStatsTab():
         st.dataframe(full_results, width='stretch', hide_index=True)
 
     st.divider()
-    # =====================
-    # 📚 Story-driven Deep Dives (Race)
-    # =====================
+
+    # Story-driven Deep Dives (Race)
     st.markdown("### 📚 Story-driven Deep Dives")
     rd1, rd2 = st.tabs([
         "Telemetry Duel",
         "Mini-Sectors Pace",
     ])
 
-    # --- Telemetry Duel ---
+    # Telemetry Duel
     with rd1:
         st.caption("Compare fastest-lap speed traces between two drivers.")
         top10 = df_race.head(10)
@@ -477,7 +473,7 @@ def raceStatsTab():
             with st.expander("Details"):
                 st.exception(e)
 
-    # --- Mini-Sectors Pace ---
+    # Mini-Sectors Pace 
     with rd2:
         st.caption("Who’s quicker where? Average speed in equal-distance mini-sectors for selected drivers.")
         try:

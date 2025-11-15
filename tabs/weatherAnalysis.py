@@ -32,9 +32,7 @@ def get_weather_data(year, location):
         
         # Convert timedelta to seconds for plotting
         if 'Time' in weather_df.columns:
-            # Time is a timedelta, convert to total seconds from session start
             weather_df['TimeSeconds'] = weather_df['Time'].dt.total_seconds()
-            # Create a readable time label (minutes:seconds)
             weather_df['TimeLabel'] = weather_df['TimeSeconds'].apply(
                 lambda x: f"{int(x//60)}:{int(x%60):02d}"
             )
@@ -165,7 +163,6 @@ def weatherAnalysisTab():
     st.markdown("### 🌤️ Weather Impact on Performance")
     st.markdown("Analyze how weather conditions affect race performance using FastF1 telemetry data.")
     
-    # Load overall data for race selection
     df = load_merged_dataset()
     
     # Year and location selection
@@ -173,7 +170,6 @@ def weatherAnalysisTab():
     
     with col1:
         available_years = sorted(df['year'].unique(), reverse=True)
-        # Filter to recent years where FastF1 data is more reliable
         recent_years = [y for y in available_years if y >= 2018]
         selected_year = st.selectbox("Select Year", recent_years, index=0)
     
@@ -198,7 +194,7 @@ def weatherAnalysisTab():
     with col_overview:
         st.markdown("#### 🌤️ Weather Overview")
         
-        # Key weather metrics in compact format
+        # Key weather metrics 
         col_a, col_b = st.columns(2)
         with col_a:
             st.metric("🌡️ Air", f"{weather_df['AirTemp'].mean():.1f}°C")
@@ -515,16 +511,14 @@ def weatherAnalysisTab():
     st.divider()
     st.caption(f"📊 Weather data for {selected_location} {selected_year} | Powered by FastF1")
 
-    # =====================
-    # 📚 Story-driven Deep Dives (Weather)
-    # =====================
+    # Story-driven Deep Dives (Weather)
     st.markdown("### 📚 Story-driven Deep Dives")
     wd1, wd2 = st.tabs([
         "Lap Time Sensitivity",
         "Weather Regimes",
     ])
 
-    # --- Lap Time Sensitivity: per-driver correlation heatmap ---
+    #Lap Time Sensitivity: per-driver correlation heatmap
     with wd1:
         st.caption("Which drivers are most sensitive to which weather factors? Correlation of lap time vs weather.")
         with st.spinner("Computing correlations..."):

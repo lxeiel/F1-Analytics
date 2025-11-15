@@ -9,11 +9,11 @@ import numpy as np
 @st.cache_data
 def get_overall_data() -> pd.DataFrame:
     df = load_merged_dataset()
-    # Ensure numeric types for key columns
+  
     for col in ['points', 'positionOrder', 'grid', 'year']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-    # Build Driver display name if not present
+   
     if 'Driver' not in df.columns:
         df['forename'] = df.get('forename', '').fillna('')
         df['surname'] = df.get('surname', '').fillna('')

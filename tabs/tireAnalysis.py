@@ -84,7 +84,7 @@ def tireAnalysisTab():
     st.markdown("### 🏎️ Tire Strategy Analysis")
     st.markdown("Compare tire strategies across drivers in a race using FastF1 telemetry data.")
     
-    # Load overall data for race selection
+    # Load overall data 
     df = load_merged_dataset()
     
     # Year and location selection
@@ -221,7 +221,7 @@ def tireAnalysisTab():
         fig_stops.update_layout(height=400)
         st.plotly_chart(fig_stops, use_container_width=True)
     
-    # Detailed Strategy Table
+    # Strategy Table
     st.markdown("##### 📋 Detailed Strategy Breakdown")
     
     # Filter options
@@ -268,16 +268,16 @@ def tireAnalysisTab():
     st.divider()
     st.caption(f"📊 Tire strategy data for {selected_location} {selected_year} | Powered by FastF1")
 
-    # =====================
-    # 📚 Story-driven Deep Dives (Tires)
-    # =====================
+ 
+    # Story-driven Deep Dives (Tires)
+
     st.markdown("### 📚 Story-driven Deep Dives")
     td1, td2 = st.tabs([
         "Strategy Archetypes",
         "Degradation Curves",
     ])
 
-    # --- Strategy Archetypes: Parallel Categories of stint sequences ---
+    # Strategy Archetypes: Parallel Categories of stint sequences 
     with td1:
         st.caption("What patterns do strategies follow? Explore stint compound sequences by driver.")
         try:
@@ -302,7 +302,7 @@ def tireAnalysisTab():
             with st.expander("Details"):
                 st.exception(e)
 
-    # --- Degradation Curves: Lap time vs Tyre Life per compound ---
+    #Degradation Curves: Lap time vs Tyre Life per compound
     with td2:
         st.caption("How lap times evolve with tyre life, by compound (binned average).")
         try:

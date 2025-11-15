@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from utils.loadDatasets import *#load_merged_dataset
+from utils.loadDatasets import *
 from utils.teamColors import get_team_color_map, TEAM_COLORS
 
 @st.cache_data
@@ -86,7 +86,7 @@ def homeTab():
     col_left, col_right = st.columns(2)
     
     with col_left:
-        # === CHAMPIONSHIP WINNERS OVER TIME ===
+        # CHAMPIONSHIP WINNERS OVER TIME
         st.markdown("### 🏆 Championship Winners by Year")
         
         # Get winners (P1) by year
@@ -116,7 +116,7 @@ def homeTab():
         st.plotly_chart(fig_winners, use_container_width=True)
     
     with col_right:
-        # === TOP PERFORMING DRIVERS ===
+        # TOP PERFORMING DRIVERS
         st.markdown("### 🥇 Top Performing Drivers")
         
         driver_stats = df_filtered.groupby(['driverId', 'forename', 'surname', 'code']).agg({
@@ -151,7 +151,7 @@ def homeTab():
     
     st.divider()
     
-    # === PERFORMANCE TRENDS OVER TIME ===
+    # PERFORMANCE TRENDS OVER TIME
     st.markdown("### 📈 Performance Trends Over Time")
     
     tab1, tab2, tab3 = st.tabs(["🚀 Speed Evolution", "⏱️ Lap Times", "🏢 Team Performance"])
@@ -274,7 +274,7 @@ def homeTab():
     
     st.divider()
     
-    # === RECENT SEASON SUMMARY ===
+    #RECENT SEASON SUMMARY
     st.markdown(f"### 🏁 {max_year} Season Highlights")
     
     col1, col2 = st.columns(2)
@@ -316,9 +316,8 @@ def homeTab():
     st.divider()
     st.caption(f"📊 Data spans from {min_year} to {max_year} | Total of {len(df):,} race results")
 
-    # =====================
-    # 📚 Story-driven Deep Dives (Overall)
-    # =====================
+    # Story-driven Deep Dives (Overall)
+
     st.markdown("### 📚 Story-driven Deep Dives")
 
     dd1, dd2 = st.tabs([
@@ -326,7 +325,7 @@ def homeTab():
         "Pace vs Reliability",
     ])
 
-    # --- Competitive Landscape ---
+    # Competitive Landscape
     with dd1:
         st.caption("Who dominated when? Explore team points share and competitive balance (Gini).")
 
@@ -386,7 +385,7 @@ def homeTab():
         else:
             st.info("Not enough data to compute Gini.")
 
-    # --- Pace vs Reliability ---
+    # Pace vs Reliability 
     with dd2:
         st.caption("Do the fastest teams also finish reliably? Size=points, X=Avg Fastest Lap Speed, Y=DNF rate.")
 
@@ -433,11 +432,11 @@ def homeTab():
 
     st.divider()
 
-    # === TOP 20 DRIVERS: CAREER STARTS vs PODIUM % ===
+    #TOP 20 DRIVERS: CAREER STARTS vs PODIUM %
     st.markdown("### 🏆 Top 20 Drivers in F1 History — Longevity vs. Success Rate")
     st.caption("Career race starts vs. % podium finishes. Point size = number of championships won. Shows drivers who balanced long careers with high success.")
     
-    # Use full dataset (ignore year filter for all-time stats)
+    # Use full dataset 
     df_alltime = load_data()
     
     # Aggregate driver career statistics
