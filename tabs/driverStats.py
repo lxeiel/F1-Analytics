@@ -4,16 +4,10 @@ from utils.loadDatasets import load_merged_dataset
 import plotly.express as px
 import plotly.graph_objects as go
 
-# ============================================================
-# Load dataset once and cache
-# ============================================================
 @st.cache_data
 def get_overall_data():
     return load_merged_dataset()
 
-# ============================================================
-# Driver Stats Tab
-# ============================================================
 def driverStatsTab():
     st.header("👨‍✈️ Driver Statistics")
 
@@ -37,7 +31,7 @@ def driverStatsTab():
     driver_name_to_code = dict(zip(df_drivers_unique['Driver'], df_drivers_unique['code']))
     driver_name_to_url  = dict(zip(df_drivers_unique['Driver'], df_drivers_unique['url']))
 
-    # --- Driver selection ---
+    # Driver selection
     driver_names = df_drivers_unique['Driver'].tolist()
     if "selected_driver" not in st.session_state or st.session_state.selected_driver not in driver_names:
         st.session_state.selected_driver = driver_names[0]
@@ -50,13 +44,13 @@ def driverStatsTab():
     selected_driver_code = driver_name_to_code[selected_driver_name]
     st.session_state.selected_driver = selected_driver_name
 
-    # --- Filter driver ---
+    # Filter driver
     df_driver = df_overall[df_overall['code'] == selected_driver_code]
     if df_driver.empty:
         st.warning("No data found for this driver.")
         return
 
-    # --- Compute stats ---
+    # Compute stats
     total_races = len(df_driver)
     total_points = df_driver['points'].sum()
     total_wins = (df_driver['positionOrder'] == 1).sum()
@@ -66,9 +60,6 @@ def driverStatsTab():
     nationality = df_driver.iloc[0]['nationality']
     driver_url = driver_name_to_url.get(selected_driver_name, None)
 
-    # ============================================================
-    # Layout
-    # ============================================================
     col_left, col_right = st.columns([2, 1])
     with col_left:
         st.subheader(f"🏎️ {selected_driver_name} ({selected_driver_code})")
@@ -101,7 +92,6 @@ def driverStatsTab():
         else:
             st.info("No URL available for this driver.")
 
-    # --- NEW: Performance Trends & Season Summary ---
     st.divider()
     st.markdown("### 📊 Performance Trends & Season Summary")
 
@@ -129,9 +119,6 @@ def driverStatsTab():
     )
     st.plotly_chart(fig_wins, use_container_width=True)
 
-    # =====================
-    # 📚 Story-driven Deep Dives (Driver)
-    # =====================
     st.markdown("### 📚 Story-driven Deep Dives")
     dd1, dd2, dd3 = st.tabs([
         "Circuit Sweet Spots",
@@ -139,7 +126,7 @@ def driverStatsTab():
         "Teammate Duel",
     ])
 
-    # --- Circuit Sweet Spots ---
+    # Circuit Sweet Spots
     with dd1:
         st.caption("Where does this driver thrive? Points by circuit across career.")
         circuit_col = 'name_circuits' if 'name_circuits' in df_driver.columns else ('circuitRef' if 'circuitRef' in df_driver.columns else 'location')
@@ -158,7 +145,7 @@ def driverStatsTab():
             fig_hm.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_hm, use_container_width=True)
 
-    # --- Race Craft ---
+    # Race Craft
     with dd2:
         st.caption("How starting position translates to finishing bucket for this driver.")
         # bucketize
@@ -199,7 +186,7 @@ def driverStatsTab():
         sankey.update_layout(height=520, margin=dict(t=30, b=10, l=10, r=10))
         st.plotly_chart(sankey, use_container_width=True)
 
-    # --- Teammate Duel ---
+    # Teammate Duel
     with dd3:
         st.caption("Season-by-season points edge vs teammates (same constructor).")
         d = df_overall.copy()

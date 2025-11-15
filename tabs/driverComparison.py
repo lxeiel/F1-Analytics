@@ -6,10 +6,6 @@ from utils.loadDatasets import load_merged_dataset
 import numpy as np
 
 
-# ============================================================
-#  DATA LOADING HELPERS
-# ============================================================
-
 @st.cache_data
 def get_overall_data() -> pd.DataFrame:
     df = load_merged_dataset()
@@ -121,10 +117,6 @@ def yoy_points_change(df: pd.DataFrame) -> pd.DataFrame:
     return pts.dropna(subset=['points_prev'])
 
 
-# ============================================================
-#  MAIN DRIVER COMPARISON TAB
-# ============================================================
-
 def driverComparisonTab():
     st.header("👥 Driver Comparison")
 
@@ -145,9 +137,6 @@ def driverComparisonTab():
 
     df_range = df[(df['year'] >= year_range[0]) & (df['year'] <= year_range[1])].copy()
 
-    # ============================================================
-    # NEW: Circuit filter
-    # ============================================================
     if 'name_circuits' in df_range.columns:
         circuit_col = 'name_circuits'
     elif 'circuitRef' in df_range.columns:
@@ -186,7 +175,6 @@ def driverComparisonTab():
 
     df_sel = df_range[df_range['Driver'].isin(selected_drivers)].copy()
 
-    # --- Merge status locally ---
     status = pd.read_csv('Dataset/status.csv')
     if 'status' not in df_sel.columns:
         df_sel = df_sel.merge(status[['statusId', 'status']], on='statusId', how='left')
@@ -194,9 +182,6 @@ def driverComparisonTab():
     # In-tab navigation
     sub_overview, sub_h2h, sub_adv = st.tabs(["Overview", "Head-to-Head", "Advanced"])
 
-    # =====================
-    # Overview
-    # =====================
     stats = summarize_driver_stats(df_sel)
     with sub_overview:
         total_points = int(stats['total_points'].sum())
@@ -216,9 +201,7 @@ def driverComparisonTab():
 
         st.divider()
 
-    # =====================
     # Charts grid
-    # =====================
     with sub_overview:
         left, right = st.columns(2)
 
@@ -270,9 +253,7 @@ def driverComparisonTab():
 
         st.divider()
 
-    # =====================
-    # Standings rank + Finish distribution
-    # =====================
+    # Standings rank and Finish distribution
     with sub_overview:
         r1, r2 = st.columns(2)
 
@@ -323,9 +304,6 @@ def driverComparisonTab():
 
         st.divider()
 
-    # =====================
-    # NEW: Year-over-Year improvements
-    # =====================
     with sub_overview:
         st.markdown("### 📈 Year-over-Year Points Change")
         yoy = yoy_points_change(df_sel)
@@ -350,9 +328,6 @@ def driverComparisonTab():
 
         st.divider()
 
-    # =====================
-    # Head-to-head comparison (optional)
-    # =====================
     with sub_h2h:
         st.markdown("### ⚔️ Head-to-Head Comparison")
         if len(selected_drivers) < 2:
@@ -451,9 +426,6 @@ def driverComparisonTab():
                     fig_div.update_layout(height=max(420, 100 + bar_h * len(to_show)), legend=dict(orientation='h', yanchor='bottom', y=-0.25))
                     st.plotly_chart(fig_div, use_container_width=True)
 
-    # =====================
-    # Advanced deep dives (parallels & craft)
-    # =====================
     with sub_adv:
         st.markdown("### 🎯 Story-driven Deep Dives")
         cat_score, cat_craft = st.tabs(["Scoreboard", "Race Craft"])
@@ -506,11 +478,6 @@ def driverComparisonTab():
                     parcats.update_layout(height=520, margin=dict(t=10, b=10, l=10, r=10))
                     st.plotly_chart(parcats, use_container_width=True)
 
-        # ============================================================
-    
-    # =====================
-    # NEW: Avg Points vs Reliability (Finished Probability vs Avg Points)
-    # =====================
     with sub_overview:
         st.markdown("### ⚡ Skill vs Reliability: Avg Points vs Finish Probability")
 
@@ -567,7 +534,7 @@ def driverComparisonTab():
             # Add median line for skill (y-axis)
             fig_scatter.add_hline(y=median_points, line_dash='dash', line_color='white')
 
-            # Optional: x-axis line for reliability at 0.9
+            # x-axis line for reliability at 0.9
             fig_scatter.add_vline(x=0.9, line_dash='dash', line_color='white')
 
             # Fix x-axis from 0 to 1
